@@ -225,6 +225,9 @@ def run_p2() -> None:
         mlflow.log_metrics({f"train_prevalence_{r.p2_label}": float(r.p) for r in prev.itertuples()})
         for split, (a, b) in {"val": (VAL_START, VAL_END), "test": (TEST_START, TEST_END)}.items():
             df = load_panel(a, b, cols).dropna(subset=["dep_lag_168h", "arr_lag_168h"]).join(q, on="station_id")
+            # Estaciones nuevas (sin historia en entrenamiento) no tienen umbral: la regla no alerta.
+            num = ["dep_lag_168h", "arr_lag_168h", "q_dep", "q_arr"]
+            df[num] = df[num].astype("float64").fillna({"q_dep": np.inf, "q_arr": np.inf})
             dep_hi = df["dep_lag_168h"] > df["q_dep"]
             arr_hi = df["arr_lag_168h"] > df["q_arr"]
             pred = np.select([dep_hi & (df["dep_lag_168h"] >= df["arr_lag_168h"]), arr_hi], ["vaciado", "saturacion"], "normal")
