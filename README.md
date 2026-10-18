@@ -1,4 +1,4 @@
-# TC5061-Proyecto-EquipoNN · MiBici
+# TC5061-Proyecto-Equipo24 · MiBici
 
 <a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
@@ -7,9 +7,6 @@
 Proyecto integrador de **TC5061 Operaciones de aprendizaje automático (MLOps)**. Usamos los datos abiertos de
 [MiBici](https://www.mibici.net/es/datos-abiertos/), el sistema de bicicleta pública del Área Metropolitana de
 Guadalajara, para responder tres preguntas de operación con Machine Learning.
-
-> Antes de entregar: reemplazar `NN` por el número de equipo en el nombre del repositorio, en `pyproject.toml`,
-> en este README y en `MIBICI_TEAM` (archivo `.env`).
 
 ## Preguntas del proyecto
 
@@ -37,6 +34,10 @@ Los datos **no** se suben a Git. Se reconstruyen con un comando y se versionan c
 (`data_version`) se registra como parámetro y etiqueta en cada run de MLflow.
 
 ## Estructura del repositorio
+
+Generada con [Cookiecutter Data Science](https://cookiecutter-data-science.drivendata.org/)
+(`pipx install cookiecutter-data-science` y `ccds` con `include_code_scaffold = Yes`); ese resultado es el
+primer commit del repositorio.
 
 ```
 ├── MLproject              <- Entry points de MLflow Projects (ingest, features, p1, p2, p3, main)
@@ -67,13 +68,13 @@ Los datos **no** se suben a Git. Se reconstruyen con un comando y se versionan c
 Requiere Python 3.12 (también funciona con 3.11 y 3.13) y un servidor de MLflow.
 
 ```bash
-git clone https://github.com/<usuario>/TC5061-Proyecto-EquipoNN.git
-cd TC5061-Proyecto-EquipoNN
+git clone https://github.com/<usuario>/TC5061-Proyecto-Equipo24.git
+cd TC5061-Proyecto-Equipo24
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env        # y edita MIBICI_TEAM con el número de equipo
+cp .env.example .env        # MIBICI_TEAM=equipo24 y la URI de MLflow
 ```
 
 Servidor de MLflow (en otra terminal, fuera del repositorio):
@@ -103,9 +104,9 @@ Lo mismo con MLflow Projects (usa el entorno actual; el nombre del experimento d
 export MLFLOW_TRACKING_URI=http://localhost:5000
 mlflow run . -e ingest   --env-manager local
 mlflow run . -e features --env-manager local
-mlflow run . -e p1 --env-manager local --experiment-name mibici-equipoNN
-mlflow run . -e p2 --env-manager local --experiment-name mibici-equipoNN
-mlflow run . -e p3 --env-manager local --experiment-name mibici-equipoNN -P model=kmeans -P k=5
+mlflow run . -e p1 --env-manager local --experiment-name mibici-equipo24
+mlflow run . -e p2 --env-manager local --experiment-name mibici-equipo24
+mlflow run . -e p3 --env-manager local --experiment-name mibici-equipo24 -P model=kmeans -P k=5
 ```
 
 Prueba de punta a punta **sin internet** con datos sintéticos que imitan los formatos del portal:
@@ -116,7 +117,7 @@ make smoke
 
 ## Experimento base
 
-Experimento `mibici-equipoNN` en MLflow. Runs:
+Experimento `mibici-equipo24` en MLflow. Runs:
 
 | Run | Pregunta | Baseline | Métricas principales | Artefactos |
 |---|---|---|---|---|
@@ -151,8 +152,11 @@ silueta y estabilidad bootstrap en P3) están justificados en la propuesta (`ref
   Ejemplo: `feat/ingesta-mibici`, `exp/p1-lightgbm`.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/es/v1.0.0/), en español:
   `feat(dataset): detecta codificación por archivo`, `fix(features): rezago sin fuga`.
-- **Pull Requests:** descripción de qué cambia y cómo se probó; si el cambio afecta un run, el enlace al run
-  de MLflow. Cada integrante abre al menos un PR y revisa al menos uno de otra persona.
+- **Pull Requests:** se usa la plantilla `.github/pull_request_template.md` (qué cambia, pregunta que atiende,
+  cómo se probó y enlace al run de MLflow si aplica). Cada integrante abre al menos un PR y revisa al menos uno
+  de otra persona; el autor no aprueba su propio PR.
+- **Protección de `main`** (Settings → Branches → Add branch ruleset): requerir Pull Request antes de
+  integrar, al menos 1 aprobación, descartar aprobaciones al subir nuevos commits y bloquear force push.
 
 ## Integrantes y roles
 

@@ -53,6 +53,7 @@ import typer
 from mibici.config import (
     DATA_MANIFEST,
     END_MONTH,
+    FIGURES_DIR,
     MLFLOW_EXPERIMENT,
     MLFLOW_TRACKING_URI,
     P2_BASELINE_QUANTILE,
@@ -116,7 +117,10 @@ def start_run(question: str, run_name: str, model: str, extra_params: dict) -> m
 
 
 def log_figure(fig, name: str) -> None:
+    """Registra la figura en MLflow y la guarda también en reports/figures/."""
     mlflow.log_figure(fig, f"figures/{name}")
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    fig.savefig(FIGURES_DIR / name, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
 

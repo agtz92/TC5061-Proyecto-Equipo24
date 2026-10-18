@@ -2,7 +2,7 @@
 # GLOBALS                                                                       #
 #################################################################################
 
-PROJECT_NAME = TC5061-Proyecto-EquipoNN
+PROJECT_NAME = TC5061-Proyecto-Equipo24
 PYTHON_VERSION = 3.12
 PYTHON_INTERPRETER = python
 
