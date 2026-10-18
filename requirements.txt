@@ -1,14 +1,32 @@
-ipython
-jupyterlab
-loguru
-matplotlib
-notebook
-numpy
-pandas
-pip
-python-dotenv
-ruff
-scikit-learn
-tqdm
-typer
+# Dependencias con versión fija (Python 3.12).
+# Instalar con: pip install -r requirements.txt
+
+# Datos e ingesta
+requests==2.32.3
+pandas==2.2.3
+numpy==2.2.5
+pyarrow==19.0.1
+duckdb==1.2.2
+
+# Modelado y seguimiento de experimentos
+scikit-learn==1.6.1
+mlflow==2.22.0
+sqlalchemy==2.0.40  # mlflow 2.22 no es compatible con SQLAlchemy 2.1
+
+# Gráficas
+matplotlib==3.10.1
+
+# CLI y utilidades (plantilla ccds)
+typer==0.15.2
+loguru==0.7.3
+python-dotenv==1.1.0
+tqdm==4.67.1
+
+# Notebooks y calidad de código
+jupyterlab==4.4.1
+ipykernel==6.29.5
+ruff==0.11.8
+pytest==8.3.5
+
+# Módulo del proyecto en modo editable
 -e .
