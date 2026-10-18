@@ -189,3 +189,31 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+# ---------------------------------------------------------------------------
+# Proyecto MiBici (TC5061)
+# ---------------------------------------------------------------------------
+# Datos de MiBici: nunca en Git (se reconstruyen con `python -m mibici.dataset`)
+/data/
+*.csv.part
+# El manifiesto de datos SÍ se versiona: data_manifest.json (en la raíz)
+
+# MLflow: corridas, artefactos y base de datos locales
+mlruns/
+mlartifacts/
+mlflow.db
+*.db
+
+# Modelos serializados
+/models/*
+!/models/.gitkeep
+*.pkl
+*.joblib
+*.onnx
+*.pt
+
+# Credenciales y entorno
+.env
+.env.*
+!.env.example
+*.pem
+*.key

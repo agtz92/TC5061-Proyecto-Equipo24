@@ -1,30 +1,8 @@
-from pathlib import Path
+"""Predicción batch (pendiente para la siguiente entrega).
 
-from loguru import logger
-from tqdm import tqdm
-import typer
-
-from mibici.config import MODELS_DIR, PROCESSED_DATA_DIR
-
-app = typer.Typer()
-
-
-@app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    features_path: Path = PROCESSED_DATA_DIR / "test_features.csv",
-    model_path: Path = MODELS_DIR / "model.pkl",
-    predictions_path: Path = PROCESSED_DATA_DIR / "test_predictions.csv",
-    # -----------------------------------------
-):
-    # ---- REPLACE THIS WITH YOUR OWN CODE ----
-    logger.info("Performing inference for model...")
-    for i in tqdm(range(10), total=10):
-        if i == 5:
-            logger.info("Something happened for iteration 5.")
-    logger.success("Inference complete.")
-    # -----------------------------------------
-
-
-if __name__ == "__main__":
-    app()
+Aquí vivirá la generación nocturna de pronósticos para el día siguiente:
+cargar el modelo registrado en MLflow Model Registry para P1 y P2, construir
+las features con mibici.features hasta las 23:59 del día anterior y escribir
+reports/predicciones_AAAA_MM_DD.csv. En esta entrega solo se implementa el
+experimento base (mibici.modeling.train).
+"""

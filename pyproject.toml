@@ -7,7 +7,7 @@ name = "mibici"
 version = "0.0.1"
 description = "Proyecto integrador MiBici: demanda, riesgo de vaciado o saturaci\u00f3n y tipolog\u00edas de estaciones"
 authors = [
-  { name = "Equipo NN TC5061" },
+  { name = "Equipo 24 TC5061" },
 ]
 
 readme = "README.md"
@@ -15,7 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     
 ]
-requires-python = "~=3.12.0"
+requires-python = ">=3.11,<3.14"
 
 
 [tool.ruff]

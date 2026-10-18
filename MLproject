@@ -1,0 +1,28 @@
+name: mibici
+
+python_env: python_env.yaml
+
+entry_points:
+  ingest:
+    parameters:
+      start: {type: string, default: "2022-01"}
+      end: {type: string, default: "2026-09"}
+    command: "python -m mibici.dataset --start {start} --end {end}"
+
+  features:
+    command: "python -m mibici.features"
+
+  p1:
+    command: "python -m mibici.modeling.train p1"
+
+  p2:
+    command: "python -m mibici.modeling.train p2"
+
+  p3:
+    parameters:
+      model: {type: string, default: "municipio"}
+      k: {type: string, default: "5"}
+    command: "python -m mibici.modeling.train p3 --model {model} --k {k}"
+
+  main:
+    command: "python -m mibici.modeling.train all"
