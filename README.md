@@ -77,11 +77,11 @@ pip install -r requirements.txt
 cp .env.example .env        # MIBICI_TEAM=equipo24 y la URI de MLflow
 ```
 
-Servidor de MLflow (en otra terminal, fuera del repositorio):
+Servidor de MLflow (en otra terminal). Se usa el puerto 5001 porque en macOS el 5000 lo ocupa el receptor de AirPlay:
 
 ```bash
 mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts \
-  --serve-artifacts --host 127.0.0.1 --port 5000
+  --serve-artifacts --host 127.0.0.1 --port 5001
 ```
 
 ## Uso
@@ -101,7 +101,7 @@ python -m mibici.modeling.train all
 Lo mismo con MLflow Projects (usa el entorno actual; el nombre del experimento debe coincidir con el de `.env`):
 
 ```bash
-export MLFLOW_TRACKING_URI=http://localhost:5000
+export MLFLOW_TRACKING_URI=http://localhost:5001
 mlflow run . -e ingest   --env-manager local
 mlflow run . -e features --env-manager local
 mlflow run . -e p1 --env-manager local --experiment-name mibici-equipo24
