@@ -57,10 +57,38 @@ create_environment:
 #################################################################################
 
 
-## Make dataset
+## Descarga, normaliza, limpia y versiona los datos (data_manifest.json)
 .PHONY: data
-data: requirements
-	$(PYTHON_INTERPRETER) mibici/dataset.py
+data:
+	$(PYTHON_INTERPRETER) -m mibici.dataset
+
+## Verifica los CSV locales contra el manifiesto
+.PHONY: verify
+verify:
+	$(PYTHON_INTERPRETER) -m mibici.dataset verify
+
+## Construye el panel estacion x hora y los perfiles de estaciones
+.PHONY: features
+features:
+	$(PYTHON_INTERPRETER) -m mibici.features
+
+## Corre el experimento base (un run por pregunta + K-Means) en MLflow
+.PHONY: experiment
+experiment:
+	$(PYTHON_INTERPRETER) -m mibici.modeling.train all
+
+## Prueba de punta a punta con datos sinteticos (no requiere internet)
+.PHONY: smoke
+smoke:
+	$(PYTHON_INTERPRETER) tests/make_sample_data.py data/sample
+	$(PYTHON_INTERPRETER) -m mibici.dataset --source-dir data/sample --start 2025-01 --end 2026-02
+	$(PYTHON_INTERPRETER) -m mibici.features
+	$(PYTHON_INTERPRETER) -m pytest -q tests
+
+## Pruebas unitarias
+.PHONY: test
+test:
+	$(PYTHON_INTERPRETER) -m pytest -q tests
 
 
 #################################################################################
