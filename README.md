@@ -165,4 +165,4 @@ silueta y estabilidad bootstrap en P3) están justificados en la propuesta (`ref
 | José Alfredo Gutiérrez Guerra | _por definir_ |
 | Antonio Abraham Díaz Arvizu | Integrante |
 | _Integrante 3_ | _por definir_ |
-| _Integrante 4_ | _por definir_ |
+| José Antonio Padilla Pereira | _por definir_ |
