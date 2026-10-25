@@ -1,28 +1,39 @@
 name: mibici
 
+# Entorno declarado con las mismas versiones fijas de requirements.txt.
 python_env: python_env.yaml
 
+# Todos los valores por defecto son "config": el código los toma de mibici/config.py,
+# así este archivo no repite rutas, fechas, semillas ni hiperparámetros.
 entry_points:
   ingest:
     parameters:
-      start: {type: string, default: "2022-01"}
-      end: {type: string, default: "2026-09"}
+      start: {type: string, default: "config"}
+      end: {type: string, default: "config"}
     command: "python -m mibici.dataset --start {start} --end {end}"
 
   features:
     command: "python -m mibici.features"
 
-  p1:
-    command: "python -m mibici.modeling.train p1"
-
-  p2:
-    command: "python -m mibici.modeling.train p2"
-
-  p3:
+  train:
     parameters:
-      model: {type: string, default: "municipio"}
-      k: {type: string, default: "5"}
-    command: "python -m mibici.modeling.train p3 --model {model} --k {k}"
+      question: {type: string, default: "p1"}
+      model: {type: string, default: "config"}
+      n_estimators: {type: string, default: "config"}
+      max_depth: {type: string, default: "config"}
+      min_samples_leaf: {type: string, default: "config"}
+      max_iter: {type: string, default: "config"}
+      learning_rate: {type: string, default: "config"}
+      alpha: {type: string, default: "config"}
+      C: {type: string, default: "config"}
+      k: {type: string, default: "config"}
+      sample_rows: {type: string, default: "config"}
+    command: >-
+      python -m mibici.modeling.train run
+      --question {question} --model {model}
+      --n-estimators {n_estimators} --max-depth {max_depth} --min-samples-leaf {min_samples_leaf}
+      --max-iter {max_iter} --learning-rate {learning_rate} --alpha {alpha} --C {C} --k {k}
+      --sample-rows {sample_rows}
 
-  main:
-    command: "python -m mibici.modeling.train all"
+  baselines:
+    command: "python -m mibici.modeling.train baselines"

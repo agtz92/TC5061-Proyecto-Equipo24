@@ -72,10 +72,10 @@ verify:
 features:
 	$(PYTHON_INTERPRETER) -m mibici.features
 
-## Corre el experimento base (un run por pregunta + K-Means) en MLflow
+## Corre los baselines de P1, P2 y P3 con el MLflow Project
 .PHONY: experiment
 experiment:
-	$(PYTHON_INTERPRETER) -m mibici.modeling.train all
+	mlflow run . -e baselines --env-manager local
 
 ## Prueba de punta a punta con datos sinteticos (no requiere internet)
 .PHONY: smoke
