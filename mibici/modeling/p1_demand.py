@@ -37,6 +37,7 @@ from mibici.modeling.tracking import (
     log_sklearn_model,
     log_table,
     log_training_input,
+    register_model_version,
     start_run,
 )
 
@@ -193,5 +194,8 @@ def run(model: str, hp: dict, sample_rows: int, stage_of_work: str | None = None
         ax.set_title(f"P1 {model}: WAPE por nivel de demanda")
         ax.legend()
         log_figure(fig, f"p1_{model}_wape_por_nivel.png")
+        # Registrar en el Model Registry (solo corridas que no son hijas de búsqueda)
+        if not nested and model != "baseline":
+            register_model_version("p1")
         logger.success(f"Run P1 ({run_name}) registrado")
     return metrics

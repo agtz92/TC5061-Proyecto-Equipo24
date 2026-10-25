@@ -38,7 +38,7 @@ from mibici.config import (
     TRAIN_SAMPLE_ROWS,
 )
 from mibici.modeling import p1_demand, p2_risk, p3_clusters
-from mibici.modeling.tracking import log_table, start_run
+from mibici.modeling.tracking import log_table, register_model_version, start_run
 
 app = typer.Typer(help="Entrenamiento de modelos MiBici (P1, P2, P3) con MLflow.")
 
@@ -149,6 +149,26 @@ def baselines():
     """Corre los baselines de las tres preguntas (experimento base de la propuesta)."""
     for q, m in [("p1", "baseline"), ("p2", "baseline"), ("p3", "municipio")]:
         train_one(q, m, HYPERPARAMS, TRAIN_SAMPLE_ROWS)
+
+
+@app.command()
+def register(
+    question: str = typer.Option(..., help="p1 | p2 | p3"),
+    run_id: str = typer.Option(..., help="run_id del que se toma el artefacto model/"),
+    alias: str = typer.Option("champion", help="Alias a asignar (champion | candidate | ...)"),
+):
+    """Registra un run existente en el Model Registry con nombre canónico y linaje completo.
+
+    Ejemplo:
+        python -m mibici.modeling.train register --question p1 --run-id <run_id> --alias champion
+        mlflow run . -e register --env-manager local -P question=p1 -P run_id=<run_id>
+    """
+    import mlflow as _mlflow
+
+    from mibici.config import MLFLOW_TRACKING_URI
+    _mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    version = register_model_version(question.lower(), run_id=run_id, alias=alias)
+    typer.echo(f"Registrado: pregunta={question.upper()} version={version} alias={alias}")
 
 
 if __name__ == "__main__":

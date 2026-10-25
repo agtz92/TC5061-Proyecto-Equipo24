@@ -44,3 +44,13 @@ entry_points:
 
   baselines:
     command: "python -m mibici.modeling.train baselines"
+
+  # Registra un run en el Model Registry con nombre canónico y linaje completo.
+  register:
+    parameters:
+      question: {type: string, default: "p1"}
+      run_id: {type: string}
+      alias: {type: string, default: "champion"}
+    command: >-
+      python -m mibici.modeling.train register
+      --question {question} --run-id {run_id} --alias {alias}

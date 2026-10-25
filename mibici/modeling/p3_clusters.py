@@ -26,7 +26,14 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from mibici.config import PROFILES_PARQUET, SEED, TRAIN_END
-from mibici.modeling.tracking import log_figure, log_sklearn_model, log_table, log_training_input, start_run
+from mibici.modeling.tracking import (
+    log_figure,
+    log_sklearn_model,
+    log_table,
+    log_training_input,
+    register_model_version,
+    start_run,
+)
 
 HP_BY_MODEL = {"municipio": [], "kmeans": ["k"], "ward": ["k"], "gmm": ["k"]}
 PCA_VARIANCE = 0.9
@@ -130,5 +137,8 @@ def run(model: str, hp: dict, stage_of_work: str | None = None, nested: bool = F
         assigner = make_pipeline(StandardScaler(), PCA(n_components=PCA_VARIANCE, random_state=SEED),
                                  NearestCentroid()).fit(prof[feat_cols].fillna(0), labels)
         log_sklearn_model(assigner, prof[feat_cols].fillna(0))
+        # Registrar en el Model Registry (solo corridas que no son hijas de búsqueda)
+        if not nested and model != "municipio":
+            register_model_version("p3")
         logger.success(f"Run P3 ({run_name}) registrado")
     return m

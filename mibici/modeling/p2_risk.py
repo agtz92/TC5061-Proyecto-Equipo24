@@ -51,6 +51,7 @@ from mibici.modeling.tracking import (
     log_sklearn_model,
     log_table,
     log_training_input,
+    register_model_version,
     start_run,
 )
 
@@ -221,5 +222,8 @@ def run(model: str, hp: dict, sample_rows: int, stage_of_work: str | None = None
                 log_figure(fig, f"p2_{model}_matriz_confusion_test.png")
                 log_table(pd.DataFrame(cm, index=LABELS, columns=LABELS).reset_index(names="real"),
                           f"p2_{model}_matriz_confusion_test.csv")
+        # Registrar en el Model Registry (solo corridas que no son hijas de búsqueda)
+        if not nested and model != "baseline":
+            register_model_version("p2")
         logger.success(f"Run P2 ({run_name}) registrado")
     return metrics

@@ -129,6 +129,7 @@ mlflow run . -e baselines --env-manager local
 | `train` | `mibici/modeling/train.py` | `question`, `model` y los hiperparámetros de la tabla siguiente |
 | `search` | Búsqueda de hiperparámetros con nested runs (`SEARCH_GRIDS` en `config.py`) | `question`, `sample_rows` |
 | `baselines` | Los tres baselines de la propuesta | |
+| `register` | Registra un run en el Model Registry con nombre canónico y linaje completo | `question`, `run_id`, `alias` (por defecto `champion`) |
 
 Todo parámetro que no se indique vale `config` y se toma de `mibici/config.py` (`START_MONTH`, `END_MONTH`,
 `DEFAULT_MODEL`, `HYPERPARAMS`, `TRAIN_SAMPLE_ROWS`, `SEED`). Así `MLproject` no repite rutas, fechas ni
@@ -190,7 +191,35 @@ guarda su esquema, perfil y digest, no las filas. Las figuras ya no se copian a 
 corrida, porque esa carpeta está en Git y sobrescribirla marcaría el árbol como modificado
 (`git_dirty=true`). Para copiarlas, exporta `MIBICI_SAVE_FIGURES=1`.
 
-### Modelo elegido por pregunta
+### Modelo elegido y registro en el Model Registry
+
+Cada corrida de `train` (no-baseline, no-búsqueda) registra automáticamente su modelo
+en el MLflow Model Registry con nombres canónicos:
+
+| Pregunta | Nombre en el registry |
+|---|---|
+| P1 demanda | `mibici-equipo24-p1-demanda` |
+| P2 riesgo | `mibici-equipo24-p2-riesgo` |
+| P3 tipologías | `mibici-equipo24-p3-grupos` |
+
+Cada versión conserva su **linaje completo** en las etiquetas de la versión:
+`question`, `estimator`, `experiment_name`, `source_run_id`, `source_run_name`,
+`git_commit`, `git_dirty`, `data_version`, `team`, `model_family` y `stage_of_work`.
+
+Para **promover el modelo elegido** tras comparar corridas en la UI, usa el entry point
+`register` con el `run_id` de la corrida ganadora y el alias `champion`:
+
+```bash
+# Desde la UI de MLflow, copia el run_id de la corrida elegida
+mlflow run . -e register --env-manager local \
+  -P question=p1 -P run_id=<run_id> -P alias=champion
+
+# O directamente como módulo
+python -m mibici.modeling.train register \
+  --question p1 --run-id <run_id> --alias champion
+```
+
+El entry point también funciona para P2 y P3.
 
 | Pregunta | Modelo elegido | Comando para reproducirlo |
 |---|---|---|
