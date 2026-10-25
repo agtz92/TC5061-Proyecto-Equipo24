@@ -35,5 +35,12 @@ entry_points:
       --max-iter {max_iter} --learning-rate {learning_rate} --alpha {alpha} --C {C} --k {k}
       --sample-rows {sample_rows}
 
+  # Búsqueda de hiperparámetros con nested runs (rejilla en SEARCH_GRIDS de config.py)
+  search:
+    parameters:
+      question: {type: string, default: "p1"}
+      sample_rows: {type: string, default: "config"}
+    command: "python -m mibici.modeling.train search --question {question} --sample-rows {sample_rows}"
+
   baselines:
     command: "python -m mibici.modeling.train baselines"

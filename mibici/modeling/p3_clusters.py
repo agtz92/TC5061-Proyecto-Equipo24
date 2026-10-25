@@ -21,10 +21,12 @@ from sklearn.metrics import (
     silhouette_score,
 )
 from sklearn.mixture import GaussianMixture
+from sklearn.neighbors import NearestCentroid
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from mibici.config import PROFILES_PARQUET, SEED, TRAIN_END
-from mibici.modeling.tracking import log_figure, log_table, start_run
+from mibici.modeling.tracking import log_figure, log_sklearn_model, log_table, log_training_input, start_run
 
 HP_BY_MODEL = {"municipio": [], "kmeans": ["k"], "ward": ["k"], "gmm": ["k"]}
 PCA_VARIANCE = 0.9
@@ -64,8 +66,8 @@ def jaccard_stability(model: str, X: np.ndarray, labels: np.ndarray, k: int, n_b
     return scores.mean(axis=0)
 
 
-def run(model: str, hp: dict) -> None:
-    """Agrupa las estaciones por su perfil de uso y registra calidad, estabilidad y mapa."""
+def run(model: str, hp: dict, stage_of_work: str | None = None, nested: bool = False) -> dict:
+    """Agrupa las estaciones por su perfil de uso; registra calidad, estabilidad, mapa y modelo."""
     prof = pd.read_parquet(PROFILES_PARQUET)
     feat_cols = [c for c in prof.columns if c.startswith(("dep_", "arr_"))] + ["ratio_arr_dep", "dur_median", "pct_circular"]
     X = StandardScaler().fit_transform(prof[feat_cols].fillna(0))
@@ -83,7 +85,8 @@ def run(model: str, hp: dict) -> None:
         params["bootstrap_samples"] = N_BOOT
         run_name = f"p3-{model}-k{hp['k']}"
 
-    with start_run("P3", run_name, model, params):
+    with start_run("P3", run_name, model, params, stage_of_work=stage_of_work, nested=nested):
+        log_training_input(prof[["station_id", *feat_cols]], "p3_station_profiles", source=PROFILES_PARQUET)
         n_lab = len(np.unique(labels))
         m = {"train_n_clusters": n_lab}
         if n_lab > 1:
@@ -121,4 +124,11 @@ def run(model: str, hp: dict) -> None:
         axes[1].legend(fontsize=7)
         fig.suptitle(f"P3 {model}: perfil horario promedio por grupo")
         log_figure(fig, f"p3_perfiles_{model}.png")
+        # Modelo registrable: asigna una estación (perfil de rasgos) al grupo con el centroide
+        # más cercano en el mismo espacio estandarizado y reducido con PCA. En K-Means equivale
+        # a su predict; en Ward y GMM permite asignar estaciones nuevas con la misma interfaz.
+        assigner = make_pipeline(StandardScaler(), PCA(n_components=PCA_VARIANCE, random_state=SEED),
+                                 NearestCentroid()).fit(prof[feat_cols].fillna(0), labels)
+        log_sklearn_model(assigner, prof[feat_cols].fillna(0))
         logger.success(f"Run P3 ({run_name}) registrado")
+    return m

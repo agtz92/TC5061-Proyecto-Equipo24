@@ -31,7 +31,14 @@ from mibici.config import (
     VAL_START,
 )
 from mibici.features import load_supervised_frame
-from mibici.modeling.tracking import ABBR, log_figure, log_sklearn_model, log_table, start_run
+from mibici.modeling.tracking import (
+    ABBR,
+    log_figure,
+    log_sklearn_model,
+    log_table,
+    log_training_input,
+    start_run,
+)
 
 TARGET = "departures"
 SPLITS = {"val": (VAL_START, VAL_END), "test": (TEST_START, TEST_END)}
@@ -71,6 +78,26 @@ def poisson_floor_mae(lam: np.ndarray) -> np.ndarray:
     return maes[inv]
 
 
+def plot_real_vs_pred(y: np.ndarray, pred: np.ndarray, model: str) -> None:
+    """Real contra predicho (promedio por nivel real) y distribución de residuales en prueba."""
+    df = pd.DataFrame({"y": np.minimum(y, 30), "p": pred, "r": y - pred})
+    g = df.groupby("y")["p"].agg(mean="mean", q10=lambda v: v.quantile(0.1), q90=lambda v: v.quantile(0.9))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    axes[0].fill_between(g.index, g["q10"], g["q90"], alpha=0.25, label="P10-P90 de la predicción")
+    axes[0].plot(g.index, g["mean"], marker="o", ms=3, label="Predicción media")
+    axes[0].plot([0, 30], [0, 30], "k--", lw=1, label="Ideal")
+    axes[0].set_xlabel("Viajes reales por estación-hora (30 = 30 o más)")
+    axes[0].set_ylabel("Viajes predichos")
+    axes[0].set_title(f"P1 {model}: real contra predicho (prueba)")
+    axes[0].legend(fontsize=8)
+    axes[1].hist(df["r"].clip(-15, 15), bins=61, color="steelblue")
+    axes[1].set_xlabel("Residual = real - predicho (recortado a +/-15)")
+    axes[1].set_ylabel("Estación-horas")
+    axes[1].set_title(f"Residuales (media {df['r'].mean():.3f})")
+    fig.tight_layout()
+    log_figure(fig, f"p1_{model}_real_vs_predicho.png")
+
+
 def regression_metrics(y: np.ndarray, pred: np.ndarray, prefix: str) -> dict[str, float]:
     return {
         f"{prefix}_mae": mean_absolute_error(y, pred),
@@ -93,8 +120,8 @@ def diebold_mariano_pvalue(err_base: np.ndarray, err_model: np.ndarray, days: pd
     return float(1 - stats.norm.cdf(t))
 
 
-def run(model: str, hp: dict, sample_rows: int) -> None:
-    """Entrena (si aplica) y evalúa un modelo de P1; registra todo en MLflow."""
+def run(model: str, hp: dict, sample_rows: int, stage_of_work: str | None = None, nested: bool = False) -> dict:
+    """Entrena (si aplica) y evalúa un modelo de P1; registra todo en MLflow y devuelve sus métricas."""
     used = {k: hp[k] for k in HP_BY_MODEL[model]}
     params = {"target": "salidas por estacion-hora", "horizon_h": 24,
               "features": ",".join(P1_FEATURES) if model != "baseline" else "dep_lag_168h",
@@ -103,13 +130,15 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
     run_name = f"p1-{model}" + (f"-{suffix}" if suffix else "")
     cols = ["station_id", TARGET, "dep_lag_168h", "dep_mean_28d", *P1_FEATURES]
 
-    with start_run("P1", run_name, model, params):
+    metrics = {}
+    with start_run("P1", run_name, model, params, stage_of_work=stage_of_work, nested=nested):
         est = None
         if model != "baseline":
             train = load_supervised_frame(f"{START_MONTH}-01", TRAIN_END, cols, sample_rows=sample_rows)
             logger.info(f"P1 {model}: entrenando con {len(train):,} filas")
             est = build_model(model, hp).fit(train[P1_FEATURES], train[TARGET])
             mlflow.log_metric("train_rows", len(train))
+            log_training_input(train[["station_id", "ts", TARGET, *P1_FEATURES]], "p1_train_sample")
             if hasattr(est, "feature_importances_"):
                 imp = pd.DataFrame({"feature": P1_FEATURES, "importance": est.feature_importances_})
                 log_table(imp.sort_values("importance", ascending=False), "p1_importancia_variables.csv")
@@ -138,6 +167,9 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
             day = pd.DataFrame({"s": df["station_id"], "d": df["ts"].dt.date, "y": y, "p": pred}).groupby(["s", "d"]).sum()
             m[f"{split}_wape_station_day"] = float((day["y"] - day["p"]).abs().sum() / max(day["y"].sum(), 1))
             mlflow.log_metrics(m)
+            metrics.update(m)
+            if split == "test":
+                plot_real_vs_pred(y, pred, model)
             bins = pd.cut(lam, [-0.01, 0.5, 1, 3, 10, 30, np.inf], labels=["<0.5", "0.5-1", "1-3", "3-10", "10-30", ">30"])
             g = pd.DataFrame({"bin": bins, "err": np.abs(y - pred), "err_base": np.abs(y - base),
                               "floor": floor, "y": y}).groupby("bin", observed=True).sum()
@@ -162,3 +194,4 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
         ax.legend()
         log_figure(fig, f"p1_{model}_wape_por_nivel.png")
         logger.success(f"Run P1 ({run_name}) registrado")
+    return metrics
