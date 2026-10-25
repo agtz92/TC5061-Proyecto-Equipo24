@@ -96,6 +96,9 @@ def start_run(question: str, run_name: str, model: str, params: dict, stage: str
         # Primer run del proceso: se usa el que creó `mlflow run`.
         _PROJECT_RUN = env_run
         run = mlflow.start_run(run_id=env_run)
+        # Se retira la variable: si quedara definida, mlflow.start_run(nested=True) la
+        # reutilizaría y la primera corrida hija se registraría dentro de la corrida padre.
+        os.environ.pop("MLFLOW_RUN_ID", None)
         mlflow.set_tag("mlflow.runName", run_name)
     elif _PROJECT_RUN is not None:
         # Más de un run en el mismo `mlflow run` (p. ej. baselines): runs hijos
