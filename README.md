@@ -40,7 +40,7 @@ Generada con [Cookiecutter Data Science](https://cookiecutter-data-science.drive
 primer commit del repositorio.
 
 ```
-├── MLproject              <- Entry points de MLflow Projects (ingest, features, p1, p2, p3, main)
+├── MLproject              <- Entry points de MLflow Projects (ingest, features, train, baselines)
 ├── python_env.yaml        <- Entorno para `mlflow run`
 ├── Makefile               <- Atajos: make data, make features, make experiment, make smoke
 ├── data_manifest.json     <- Versión de los datos (se genera con la ingesta; sí se versiona)
@@ -58,7 +58,9 @@ primer commit del repositorio.
     ├── config.py          <- Rutas, fechas, partición, semillas, umbrales y MLflow (único lugar)
     ├── dataset.py         <- Ingesta reproducible y manifiesto de datos
     ├── features.py        <- Panel estación × hora, rezagos, etiquetas P2 y perfiles P3
-    ├── modeling/train.py  <- Experimento base en MLflow (baselines de P1, P2 y P3)
+    ├── modeling/train.py  <- CLI de entrenamiento (entry point `train` de MLproject)
+    ├── modeling/tracking.py <- Registro en MLflow: tags, parámetros, figuras y modelo
+    ├── modeling/p1_demand.py, p2_risk.py, p3_clusters.py <- Modelos y evaluación por pregunta
     ├── modeling/predict.py<- Predicción batch (siguiente entrega)
     └── plots.py           <- Gráficas compartidas (siguiente entrega)
 ```
@@ -77,36 +79,96 @@ pip install -r requirements.txt
 cp .env.example .env        # MIBICI_TEAM=equipo24 y la URI de MLflow
 ```
 
-Servidor de MLflow (en otra terminal). Se usa el puerto 5001 porque en macOS el 5000 lo ocupa el receptor de AirPlay:
+### Servidor de tracking con base de datos
+
+El Model Registry de MLflow requiere un backend con base de datos, así que el servidor usa SQLite
+(`mlflow.db`, excluido de Git junto con `mlartifacts/` y `mlruns/`). En otra terminal, desde la raíz
+del repo:
 
 ```bash
 mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts \
   --serve-artifacts --host 127.0.0.1 --port 5001
 ```
 
-## Uso
-
-```bash
-# 1. Ingesta: descarga 2022-01 a 2026-09, normaliza, limpia y escribe data_manifest.json
-python -m mibici.dataset
-python -m mibici.dataset verify          # comprueba los CSV contra el manifiesto
-
-# 2. Features: panel estación × hora y perfiles de estaciones
-python -m mibici.features
-
-# 3. Experimento base: un run por pregunta (P1, P2, P3) más K-Means para P3
-python -m mibici.modeling.train all
-```
-
-Lo mismo con MLflow Projects (usa el entorno actual; el nombre del experimento debe coincidir con el de `.env`):
+Usamos el puerto **5001** porque en macOS el 5000 lo ocupa el receptor de AirPlay (responde 403). En Linux
+o Windows puede usarse `--port 5000`, ajustando la URI. Después, en la terminal de trabajo:
 
 ```bash
 export MLFLOW_TRACKING_URI=http://localhost:5001
-mlflow run . -e ingest   --env-manager local
-mlflow run . -e features --env-manager local
-mlflow run . -e p1 --env-manager local --experiment-name mibici-equipo24
-mlflow run . -e p2 --env-manager local --experiment-name mibici-equipo24
-mlflow run . -e p3 --env-manager local --experiment-name mibici-equipo24 -P model=kmeans -P k=5
+export MLFLOW_EXPERIMENT_NAME=mibici-equipo24
+```
+
+## Reproducir desde un clon limpio (MLflow Project)
+
+Todas las corridas se lanzan desde el MLflow Project (`MLproject`), nunca desde un notebook.
+`--env-manager local` usa el entorno virtual ya instalado con `requirements.txt`; sin esa bandera MLflow
+crea un entorno nuevo a partir de `python_env.yaml` (mismas versiones fijas; requiere `pyenv`).
+
+```bash
+# 1. Ingesta: descarga 2022-01 a 2026-09, normaliza, limpia y escribe data_manifest.json
+mlflow run . -e ingest --env-manager local
+
+# 2. Entrenamiento: construye las features si faltan, entrena, evalúa y registra el run
+mlflow run . -e train --env-manager local -P question=p1 -P model=rf -P n_estimators=300
+mlflow run . -e train --env-manager local -P question=p2 -P model=hgb -P learning_rate=0.05
+mlflow run . -e train --env-manager local -P question=p3 -P model=kmeans -P k=6
+
+# Baselines de la propuesta (P1, P2 y P3 en un solo comando)
+mlflow run . -e baselines --env-manager local
+```
+
+### Puntos de entrada
+
+| Entry point | Qué ejecuta | Parámetros |
+|---|---|---|
+| `ingest` | `mibici/dataset.py` | `start`, `end` (AAAA-MM) |
+| `features` | `mibici/features.py` (opcional; `train` lo corre si faltan las features) | |
+| `train` | `mibici/modeling/train.py` | `question`, `model` y los hiperparámetros de la tabla siguiente |
+| `baselines` | Los tres baselines de la propuesta | |
+
+Todo parámetro que no se indique vale `config` y se toma de `mibici/config.py` (`START_MONTH`, `END_MONTH`,
+`DEFAULT_MODEL`, `HYPERPARAMS`, `TRAIN_SAMPLE_ROWS`, `SEED`). Así `MLproject` no repite rutas, fechas ni
+semillas. En cada run, los parámetros con el nombre del `MLproject` muestran lo que se pasó en la línea de
+comandos y los parámetros `hp_*` y `estimator` muestran el valor efectivo usado.
+
+### Modelos e hiperparámetros por pregunta
+
+| Pregunta | `model` | Hiperparámetros que usa | Por defecto (`config.py`) |
+|---|---|---|---|
+| P1 demanda | `baseline`, `poisson`, `rf`, `hgb` | poisson: `alpha` · rf: `n_estimators`, `max_depth`, `min_samples_leaf` · hgb: `max_iter`, `learning_rate`, `max_depth`, `min_samples_leaf` | `hgb` (pérdida Poisson) |
+| P2 riesgo | `baseline`, `logreg`, `rf`, `hgb` | logreg: `C` · rf y hgb: como en P1 | `hgb` con pesos de clase, calibrado |
+| P3 tipologías | `municipio`, `kmeans`, `ward`, `gmm` | `k` | `kmeans`, `k=5` |
+
+- **P1:** entrena con una muestra determinista de 2 millones de filas estación-hora (hash de estación,
+  hora y semilla). Métricas `val_`/`test_`: mae, rmse, wape, poisson_deviance, wape_station_day,
+  wape_baseline, wape_poisson_floor, `gap_closed` (fracción de la brecha baseline → piso cerrada) y
+  `dm_pvalue` (Diebold-Mariano contra el baseline).
+- **P2:** entrena con todas las horas de riesgo y una muestra de las normales; calibra las probabilidades
+  (isotónica) con validación y alerta si P(riesgo) ≥ 1/(1+c). Métricas: expected_cost_per_1000 (y el del
+  baseline en las mismas filas), cost_reduction_vs_baseline, precision/recall/f1 por clase,
+  avg_precision por clase de riesgo, brier_risk, alerts_per_day.
+- **P3:** silhouette, davies_bouldin, calinski_harabasz, Jaccard bootstrap (media y mínimo por cluster) y
+  ARI contra el municipio.
+- P1 y P2 registran el modelo con firma y ejemplo de entrada (`model/`), listo para el Model Registry.
+
+### Modelo elegido por pregunta
+
+| Pregunta | Modelo elegido | Comando para reproducirlo |
+|---|---|---|
+| P1 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p1 -P model=...` |
+| P2 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p2 -P model=...` |
+| P3 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p3 -P model=...` |
+
+### Sin MLflow Project
+
+Los mismos pasos como módulos de Python (útil para depurar):
+
+```bash
+python -m mibici.dataset
+python -m mibici.dataset verify          # comprueba los CSV contra el manifiesto
+python -m mibici.features
+python -m mibici.modeling.train run --question p1 --model rf --n-estimators 300
+python -m mibici.modeling.train baselines
 ```
 
 Prueba de punta a punta **sin internet** con datos sintéticos que imitan los formatos del portal:
@@ -114,20 +176,6 @@ Prueba de punta a punta **sin internet** con datos sintéticos que imitan los fo
 ```bash
 make smoke
 ```
-
-## Experimento base
-
-Experimento `mibici-equipo24` en MLflow. Runs:
-
-| Run | Pregunta | Baseline | Métricas principales | Artefactos |
-|---|---|---|---|---|
-| `p1-baseline-estacional-lag168h` | P1 | Misma estación y hora de la semana anterior | `val_/test_` mae, rmse, wape, poisson_deviance, wape_station_day, wape_poisson_floor | WAPE vs. piso Poisson por nivel de demanda |
-| `p2-baseline-regla-q3` | P2 | Alerta si las salidas o llegadas de la semana anterior superan el Q3 propio de la estación | `val_/test_` f1_macro, precision/recall por clase, expected_cost_per_1000, alert_rate | Matriz de confusión |
-| `p3-baseline-municipio` | P3 | Agrupación por municipio (GDL, ZPN, TLQ) | `train_` silhouette, davies_bouldin, calinski_harabasz | Mapa y perfiles por grupo |
-| `p3-kmeans-k5` | P3 | K-Means sobre PCA de los perfiles | Las anteriores más jaccard_bootstrap_mean y ari_vs_municipio | Mapa y perfiles por grupo |
-
-Los criterios para aprobar un modelo (brecha cerrada contra el piso Poisson en P1, costo esperado en P2,
-silueta y estabilidad bootstrap en P3) están justificados en la propuesta (`references/`).
 
 ## Buenas prácticas y dónde se aplican
 
