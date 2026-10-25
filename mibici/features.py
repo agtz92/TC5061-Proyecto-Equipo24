@@ -28,6 +28,7 @@ from mibici.config import (
     P2_NET_FLOW_THRESHOLD,
     PANEL_PARQUET,
     PROFILES_PARQUET,
+    SEED,
     START_MONTH,
     STATIONS_PARQUET,
     TRAIN_END,
@@ -238,6 +239,51 @@ def load_panel(start: str, end: str, columns: list[str] | None = None) -> pd.Dat
     q = f"""SELECT {cols} FROM read_parquet('{PANEL_PARQUET}')
             WHERE ts BETWEEN TIMESTAMP '{start}' AND TIMESTAMP '{end}'"""
     return duckdb.sql(q).df()
+
+
+def load_supervised_frame(
+    start: str,
+    end: str,
+    columns: list[str],
+    sample_rows: int | None = None,
+    keep_all_risk: bool = False,
+    seed: int = SEED,
+) -> pd.DataFrame:
+    """Tabla lista para modelar P1 y P2: panel + atributos de estación + calendario.
+
+    - Solo filas con rezago de 168 h disponible (la primera semana de cada estación
+      no tiene historia suficiente).
+    - Muestra determinista: una fila entra si hash(estación, hora, semilla) cae bajo
+      la fracción pedida. No depende del número de hilos ni del orden de lectura,
+      así que dos corridas con la misma semilla usan exactamente las mismas filas.
+    - keep_all_risk (P2): conserva todas las horas con riesgo y muestrea solo las
+      normales. El sesgo de prevalencia resultante se corrige al calibrar.
+
+    Pertinencia: une en una sola tabla las variables de P1 y P2 sin usar nada
+    posterior a las 23:59 del día anterior a cada hora predicha.
+    """
+    base = f"""
+        SELECT p.*, s.lat, s.lon
+        FROM read_parquet('{PANEL_PARQUET}') p
+        JOIN read_parquet('{STATIONS_PARQUET}') s USING (station_id)
+        WHERE p.ts BETWEEN TIMESTAMP '{start}' AND TIMESTAMP '{end}'
+          AND p.dep_lag_168h IS NOT NULL AND p.arr_lag_168h IS NOT NULL"""
+    if sample_rows:
+        n = duckdb.sql(f"SELECT count(*) FROM ({base})").fetchone()[0]
+        frac = min(1.0, sample_rows / max(n, 1))
+        keep = f"(hash(station_id, ts, {seed}) % 1000000) < {int(frac * 1_000_000)}"
+        if keep_all_risk:
+            keep = f"({keep} OR p2_label <> 'normal')"
+        base = f"SELECT * FROM ({base}) WHERE {keep}"
+    raw_cols = [c for c in columns if c not in CALENDAR_COLS] + ["ts"]
+    df = duckdb.sql(f"SELECT {', '.join(dict.fromkeys(raw_cols))} FROM ({base}) ORDER BY station_id, ts").df()
+    df = add_calendar_features(df)
+    num = [c for c in df.columns if c not in ("ts", "p2_label") and df[c].dtype != object]
+    df[num] = df[num].astype("float32")
+    return df
+
+
+CALENDAR_COLS = ["hour", "dow", "month", "is_weekend", "is_holiday", "is_quincena"]
 
 
 @app.callback(invoke_without_command=True)
