@@ -113,6 +113,9 @@ mlflow run . -e train --env-manager local -P question=p1 -P model=rf -P n_estima
 mlflow run . -e train --env-manager local -P question=p2 -P model=hgb -P learning_rate=0.05
 mlflow run . -e train --env-manager local -P question=p3 -P model=kmeans -P k=6
 
+# Búsqueda de hiperparámetros con nested runs (una corrida padre y una hija por combinación)
+mlflow run . -e search --env-manager local -P question=p1
+
 # Baselines de la propuesta (P1, P2 y P3 en un solo comando)
 mlflow run . -e baselines --env-manager local
 ```
@@ -124,6 +127,7 @@ mlflow run . -e baselines --env-manager local
 | `ingest` | `mibici/dataset.py` | `start`, `end` (AAAA-MM) |
 | `features` | `mibici/features.py` (opcional; `train` lo corre si faltan las features) | |
 | `train` | `mibici/modeling/train.py` | `question`, `model` y los hiperparámetros de la tabla siguiente |
+| `search` | Búsqueda de hiperparámetros con nested runs (`SEARCH_GRIDS` en `config.py`) | `question`, `sample_rows` |
 | `baselines` | Los tres baselines de la propuesta | |
 
 Todo parámetro que no se indique vale `config` y se toma de `mibici/config.py` (`START_MONTH`, `END_MONTH`,
@@ -150,6 +154,41 @@ comandos y los parámetros `hp_*` y `estimator` muestran el valor efectivo usado
 - **P3:** silhouette, davies_bouldin, calinski_harabasz, Jaccard bootstrap (media y mínimo por cluster) y
   ARI contra el municipio.
 - P1 y P2 registran el modelo con firma y ejemplo de entrada (`model/`), listo para el Model Registry.
+  P3 registra un asignador (estandarización + PCA + centroide más cercano) que ubica cualquier estación,
+  nueva o existente, en el grupo cuyo centroide está más cerca.
+
+### Experimentación: búsquedas, etiquetas y artefactos
+
+**Búsquedas con nested runs.** `mlflow run . -e search -P question=p1|p2|p3` crea una corrida padre
+(`p1-search-hgb`, `p2-search-hgb`, `p3-search-kmeans`) y una corrida hija por cada combinación de la rejilla
+definida en `SEARCH_GRIDS` (`config.py`). Al terminar, la corrida padre registra la tabla de resultados
+(`data/<pregunta>_search_<modelo>_resultados.csv`), la etiqueta `best_child_run_id`, la etiqueta
+`best_hyperparams` y la métrica `best_<métrica>`. La mejor hija se elige con `SELECTION_METRIC`, calculada en
+**validación** (nunca en prueba): `val_wape` en P1, `val_expected_cost_per_1000` en P2 y `train_silhouette`
+en P3.
+
+**Etiquetas para filtrar en la interfaz** (además de `team`, `question`, `git_commit`, `git_dirty` y
+`data_version`):
+
+| Etiqueta | Valores | Filtro de ejemplo en MLflow |
+|---|---|---|
+| `stage_of_work` | `baseline`, `search`, `candidate` | `tags.stage_of_work = 'candidate'` |
+| `model_family` | `baseline`, `glm`, `bagging_trees`, `boosting_trees`, `partitional`, `hierarchical`, `probabilistic` | `tags.model_family = 'boosting_trees'` |
+| `model` | nombre del estimador (`hgb`, `rf`, `kmeans`, ...) | `tags.question = 'P1' and tags.model = 'hgb'` |
+
+**Artefactos de cada corrida**, organizados en subcarpetas y sin datos personales:
+
+| Carpeta | Contenido |
+|---|---|
+| `model/` | Modelo con firma (`signature`) y ejemplo de entrada |
+| `plots/` | P1: WAPE por nivel de demanda, real contra predicho y residuales · P2: matriz de confusión y curva precisión-recall · P3: mapa y perfiles horarios por grupo |
+| `data/` | `data_manifest.json` (versión de los datos) y tablas agregadas por estación o por nivel de demanda |
+| `config/` | `run_config.json` (parámetros y etiquetas efectivos), `config.py`, `MLproject`, `python_env.yaml` y `requirements.txt` |
+
+El conjunto de entrenamiento se registra además con `mlflow.log_input` (pestaña *Datasets* del run): MLflow
+guarda su esquema, perfil y digest, no las filas. Las figuras ya no se copian a `reports/figures/` en cada
+corrida, porque esa carpeta está en Git y sobrescribirla marcaría el árbol como modificado
+(`git_dirty=true`). Para copiarlas, exporta `MIBICI_SAVE_FIGURES=1`.
 
 ### Modelo elegido por pregunta
 
