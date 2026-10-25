@@ -236,6 +236,9 @@ def main(
     """Descarga, normaliza, limpia y versiona los datos de MiBici."""
     if ctx.invoked_subcommand is not None:
         return
+    # MLproject pasa "config" para usar el rango definido en config.py
+    start = START_MONTH if start.strip().lower() in ("", "config") else start
+    end = END_MONTH if end.strip().lower() in ("", "config") else end
     months = month_range(start, end)
     raw_dir = source_dir or RAW_DATA_DIR
 

@@ -102,6 +102,47 @@ P3_K_RANGE = list(range(3, 11))
 P3_DEFAULT_K = 5
 
 # --------------------------------------------------------------------------
+# Modelado (valores por defecto del entry point `train` de MLproject)
+# --------------------------------------------------------------------------
+# Variables de entrada de P1 y P2. Todas se conocen a las 00:00 del día anterior
+# a la predicción (ver docstrings de mibici.features).
+P1_FEATURES = [
+    "hour", "dow", "month", "is_weekend", "is_holiday", "is_quincena",
+    "dep_lag_24h", "dep_lag_168h", "dep_mean_7d", "dep_mean_28d",
+    "capacity", "lat", "lon",
+]
+P2_FEATURES = P1_FEATURES + [
+    "arr_lag_24h", "arr_lag_168h", "netrel_mean_28d", "exp_dep_8w", "exp_arr_8w",
+]
+
+# Modelos disponibles por pregunta y el que se usa si no se indica otro.
+MODEL_CHOICES = {
+    "p1": ["baseline", "poisson", "rf", "hgb"],
+    "p2": ["baseline", "logreg", "rf", "hgb"],
+    "p3": ["municipio", "kmeans", "ward", "gmm"],
+}
+DEFAULT_MODEL = {"p1": "hgb", "p2": "hgb", "p3": "kmeans"}
+
+# Hiperparámetros por defecto. Cada modelo usa solo los que le aplican:
+# rf: n_estimators, max_depth, min_samples_leaf | hgb: max_iter, learning_rate,
+# max_depth, min_samples_leaf | poisson: alpha | logreg: C | kmeans/ward/gmm: k
+HYPERPARAMS = {
+    "n_estimators": 200,
+    "max_depth": 12,
+    "min_samples_leaf": 50,
+    "max_iter": 300,
+    "learning_rate": 0.1,
+    "alpha": 1e-4,
+    "C": 1.0,
+    "k": P3_DEFAULT_K,
+}
+
+# Tamaño de la muestra de entrenamiento (filas estación-hora). La muestra es
+# determinista: se elige por hash de (estación, hora, SEED).
+TRAIN_SAMPLE_ROWS = 2_000_000
+P2_CALIBRATION_ROWS = 500_000   # filas de validación para calibrar probabilidades (P2)
+
+# --------------------------------------------------------------------------
 # Reproducibilidad y MLflow
 # --------------------------------------------------------------------------
 SEED = 42
