@@ -143,6 +143,33 @@ TRAIN_SAMPLE_ROWS = 2_000_000
 P2_CALIBRATION_ROWS = 500_000   # filas de validación para calibrar probabilidades (P2)
 
 # --------------------------------------------------------------------------
+# Experimentación (Parte B): familias de modelos, búsquedas y criterio de selección
+# --------------------------------------------------------------------------
+# Etiqueta model_family de cada run, para filtrar y comparar en la interfaz de MLflow.
+MODEL_FAMILY = {
+    "baseline": "baseline", "municipio": "baseline",
+    "poisson": "glm", "logreg": "glm",
+    "rf": "bagging_trees", "hgb": "boosting_trees",
+    "kmeans": "partitional", "ward": "hierarchical", "gmm": "probabilistic",
+}
+
+# Búsquedas de hiperparámetros del entry point `search`: una corrida padre por
+# búsqueda y una corrida hija (nested run) por combinación de la rejilla.
+SEARCH_GRIDS = {
+    "p1": {"model": "hgb", "grid": {"learning_rate": [0.05, 0.1], "max_iter": [200, 400], "max_depth": [8, 16]}},
+    "p2": {"model": "hgb", "grid": {"learning_rate": [0.05, 0.1], "max_depth": [6, 12], "min_samples_leaf": [50, 200]}},
+    "p3": {"model": "kmeans", "grid": {"k": P3_K_RANGE}},
+}
+
+# Métrica con la que la corrida padre elige a su mejor hija. Se usa validación
+# (nunca prueba) para no seleccionar con el conjunto que reporta el desempeño final.
+SELECTION_METRIC = {
+    "p1": ("val_wape", "min"),                       # error en viajes, unidad de decisión del operador
+    "p2": ("val_expected_cost_per_1000", "min"),     # costo de la decisión de enviar camión
+    "p3": ("train_silhouette", "max"),               # cohesión y separación (sin etiquetas)
+}
+
+# --------------------------------------------------------------------------
 # Reproducibilidad y MLflow
 # --------------------------------------------------------------------------
 SEED = 42

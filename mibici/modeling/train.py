@@ -19,7 +19,12 @@ Nunca se registran datos a nivel de viaje ni de usuario.
 
 from __future__ import annotations
 
+import itertools
+import json
+
 from loguru import logger
+import mlflow
+import pandas as pd
 import typer
 
 from mibici.config import (
@@ -28,9 +33,12 @@ from mibici.config import (
     MODEL_CHOICES,
     PANEL_PARQUET,
     PROFILES_PARQUET,
+    SEARCH_GRIDS,
+    SELECTION_METRIC,
     TRAIN_SAMPLE_ROWS,
 )
 from mibici.modeling import p1_demand, p2_risk, p3_clusters
+from mibici.modeling.tracking import log_table, start_run
 
 app = typer.Typer(help="Entrenamiento de modelos MiBici (P1, P2, P3) con MLflow.")
 
@@ -53,7 +61,9 @@ def ensure_features() -> None:
         build_features()
 
 
-def train_one(question: str, model: str, hp: dict, sample_rows: int) -> None:
+def train_one(question: str, model: str, hp: dict, sample_rows: int,
+              stage_of_work: str | None = None, nested: bool = False) -> dict:
+    """Entrena y evalúa un modelo de una pregunta; devuelve las métricas registradas."""
     question = question.lower()
     if question not in MODEL_CHOICES:
         raise typer.BadParameter(f"question debe ser una de {list(MODEL_CHOICES)}")
@@ -61,11 +71,10 @@ def train_one(question: str, model: str, hp: dict, sample_rows: int) -> None:
         raise typer.BadParameter(f"model para {question} debe ser uno de {MODEL_CHOICES[question]}")
     ensure_features()
     if question == "p1":
-        p1_demand.run(model, hp, sample_rows)
-    elif question == "p2":
-        p2_risk.run(model, hp, sample_rows)
-    else:
-        p3_clusters.run(model, hp)
+        return p1_demand.run(model, hp, sample_rows, stage_of_work=stage_of_work, nested=nested)
+    if question == "p2":
+        return p2_risk.run(model, hp, sample_rows, stage_of_work=stage_of_work, nested=nested)
+    return p3_clusters.run(model, hp, stage_of_work=stage_of_work, nested=nested)
 
 
 @app.command()
@@ -95,6 +104,44 @@ def run(
     }
     q = question.lower()
     train_one(q, resolve(model, DEFAULT_MODEL.get(q), str), hp, resolve(sample_rows, TRAIN_SAMPLE_ROWS, int))
+
+
+@app.command()
+def search(
+    question: str = typer.Option(..., help="p1 | p2 | p3"),
+    sample_rows: str = typer.Option(DEFAULT, help="Filas de la muestra de entrenamiento"),
+):
+    """Búsqueda de hiperparámetros con nested runs: una corrida padre y una hija por combinación.
+
+    La rejilla y el modelo vienen de SEARCH_GRIDS (config.py). La corrida padre registra la
+    tabla de resultados y señala a la mejor hija según SELECTION_METRIC, calculada en
+    validación (nunca en prueba).
+    """
+    q = question.lower()
+    if q not in SEARCH_GRIDS:
+        raise typer.BadParameter(f"question debe ser una de {list(SEARCH_GRIDS)}")
+    ensure_features()
+    spec = SEARCH_GRIDS[q]
+    model, grid = spec["model"], spec["grid"]
+    metric, mode = SELECTION_METRIC[q]
+    rows = resolve(sample_rows, TRAIN_SAMPLE_ROWS, int)
+    combos = [dict(zip(grid, values)) for values in itertools.product(*grid.values())]
+    params = {"search_grid": json.dumps(grid), "n_combinations": len(combos), "selection_metric": metric,
+              "selection_mode": mode, "train_sample_rows": rows if q != "p3" else 0}
+    with start_run(q, f"{q}-search-{model}", model, params, stage_of_work="search"):
+        results = []
+        for combo in combos:
+            metrics = train_one(q, model, {**HYPERPARAMS, **combo}, rows, stage_of_work="search", nested=True)
+            results.append({**combo, "run_id": mlflow.last_active_run().info.run_id, **metrics})
+        tab = pd.DataFrame(results)
+        ok = tab[tab[metric].notna()]
+        best = ok.loc[ok[metric].idxmin() if mode == "min" else ok[metric].idxmax()]
+        best_hp = {k: best[k].item() if hasattr(best[k], "item") else best[k] for k in grid}
+        mlflow.set_tags({"best_child_run_id": best["run_id"], "best_hyperparams": json.dumps(best_hp)})
+        mlflow.log_metrics({f"best_{metric}": float(best[metric]), "n_child_runs": len(tab)})
+        keep = list(grid) + ["run_id"] + [c for c in tab.columns if c.startswith(("val_", "test_", "train_"))]
+        log_table(tab[keep].sort_values(metric, ascending=(mode == "min")), f"{q}_search_{model}_resultados.csv")
+        logger.success(f"Búsqueda {q}: mejor {metric} = {best[metric]:.4f} con {json.dumps(best_hp)}")
 
 
 @app.command()

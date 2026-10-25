@@ -19,6 +19,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassif
 from sklearn.frozen import FrozenEstimator
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
+    PrecisionRecallDisplay,
     average_precision_score,
     brier_score_loss,
     confusion_matrix,
@@ -44,7 +45,14 @@ from mibici.config import (
     VAL_START,
 )
 from mibici.features import LABELS, load_supervised_frame
-from mibici.modeling.tracking import ABBR, log_figure, log_sklearn_model, log_table, start_run
+from mibici.modeling.tracking import (
+    ABBR,
+    log_figure,
+    log_sklearn_model,
+    log_table,
+    log_training_input,
+    start_run,
+)
 
 TARGET = "p2_label"
 HP_BY_MODEL = {
@@ -112,6 +120,21 @@ def expected_cost(y_true, y_pred, c: float) -> float:
     return float(1000 * (c * fn + fp) / len(risk_true))
 
 
+def plot_precision_recall(y: np.ndarray, proba: pd.DataFrame, model: str) -> None:
+    """Curva precisión-recall de cada clase de riesgo en prueba; la línea punteada es su prevalencia."""
+    fig, ax = plt.subplots(figsize=(6, 4.5))
+    for lab, color in [("vaciado", "#dd8452"), ("saturacion", "#55a868")]:
+        if (y == lab).any():
+            PrecisionRecallDisplay.from_predictions(y == lab, proba[lab], ax=ax, name=lab, color=color)
+            ax.axhline((y == lab).mean(), color=color, ls=":", lw=1)
+    ax.set_title(f"P2 {model}: precisión-recall (prueba)")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    log_figure(fig, f"p2_{model}_precision_recall_test.png")
+
+
 def classification_metrics(y, pred, prefix: str) -> dict[str, float]:
     p, r, f, _ = precision_recall_fscore_support(y, pred, labels=LABELS, zero_division=0)
     m = {f"{prefix}_f1_macro": f1_score(y, pred, labels=LABELS, average="macro", zero_division=0),
@@ -122,8 +145,8 @@ def classification_metrics(y, pred, prefix: str) -> dict[str, float]:
     return m
 
 
-def run(model: str, hp: dict, sample_rows: int) -> None:
-    """Entrena (si aplica), calibra con validación y evalúa en prueba un modelo de P2."""
+def run(model: str, hp: dict, sample_rows: int, stage_of_work: str | None = None, nested: bool = False) -> dict:
+    """Entrena (si aplica), calibra con validación y evalúa en prueba un modelo de P2; devuelve sus métricas."""
     used = {k: hp[k] for k in HP_BY_MODEL[model]}
     params = {"label_netflow_threshold": P2_NET_FLOW_THRESHOLD, "cost_fn_over_fp": P2_COST_FN_OVER_FP,
               "decision_threshold": round(1 / (1 + P2_COST_FN_OVER_FP), 4), "horizon_h": 24,
@@ -136,7 +159,8 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
     run_name = f"p2-{model}" + (f"-{suffix}" if suffix else "")
     cols = ["station_id", TARGET, "dep_lag_168h", "arr_lag_168h", *P2_FEATURES]
 
-    with start_run("P2", run_name, model, params):
+    metrics = {}
+    with start_run("P2", run_name, model, params, stage_of_work=stage_of_work, nested=nested):
         q = station_quantiles()
         clf = None
         if model != "baseline":
@@ -144,6 +168,7 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
                                           sample_rows=sample_rows, keep_all_risk=True)
             logger.info(f"P2 {model}: entrenando con {len(train):,} filas")
             mlflow.log_metric("train_rows", len(train))
+            log_training_input(train[["station_id", "ts", TARGET, *P2_FEATURES]], "p2_train_sample")
             raw = build_model(model, hp).fit(train[P2_FEATURES], train[TARGET])
             del train
             # Calibración con validación (prevalencia real): corrige el sobremuestreo de riesgo.
@@ -156,7 +181,9 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
             df = load_supervised_frame(a, b, cols)
             y = df[TARGET].to_numpy()
             base = baseline_predict(df, q)
-            m = {f"{split}_expected_cost_per_1000_baseline": expected_cost(y, base, P2_COST_FN_OVER_FP)}
+            m = {f"{split}_expected_cost_per_1000_baseline": expected_cost(y, base, P2_COST_FN_OVER_FP),
+                 # segunda referencia: no alertar nunca (cada hora con riesgo es un falso negativo)
+                 f"{split}_expected_cost_per_1000_no_alert": expected_cost(y, np.full(len(y), "normal"), P2_COST_FN_OVER_FP)}
             if clf is None:
                 pred = base
             else:
@@ -171,7 +198,12 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
             cb = m[f"{split}_expected_cost_per_1000_baseline"]
             m[f"{split}_cost_reduction_vs_baseline"] = (cb - m[f"{split}_expected_cost_per_1000"]) / cb if cb else float("nan")
             m[f"{split}_alerts_per_day"] = float((pred != "normal").sum() / max(df["ts"].dt.date.nunique(), 1))
+            ca = m[f"{split}_expected_cost_per_1000_no_alert"]
+            m[f"{split}_cost_reduction_vs_no_alert"] = (ca - m[f"{split}_expected_cost_per_1000"]) / ca if ca else float("nan")
             mlflow.log_metrics(m)
+            metrics.update(m)
+            if split == "test" and clf is not None:
+                plot_precision_recall(y, proba, model)
             logger.info(f"P2 {model} {split}: costo {m[f'{split}_expected_cost_per_1000']:.2f} (baseline {cb:.2f})")
             if split == "test":
                 cm = confusion_matrix(y, pred, labels=LABELS, normalize="true")
@@ -190,3 +222,4 @@ def run(model: str, hp: dict, sample_rows: int) -> None:
                 log_table(pd.DataFrame(cm, index=LABELS, columns=LABELS).reset_index(names="real"),
                           f"p2_{model}_matriz_confusion_test.csv")
         logger.success(f"Run P2 ({run_name}) registrado")
+    return metrics
