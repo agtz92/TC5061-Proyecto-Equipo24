@@ -35,6 +35,8 @@ from mibici.config import (
     MODEL_FAMILY,
     PANEL_PARQUET,
     PROJ_ROOT,
+    REGISTRY_DESCRIPTION,
+    REGISTRY_NAME,
     SEED,
     START_MONTH,
     TEAM,
@@ -182,5 +184,118 @@ def log_sklearn_model(model, X_example: pd.DataFrame) -> None:
 
     example = X_example.head(5)
     pred = model.predict(example)
-    mlflow.sklearn.log_model(model, artifact_path="model",
-                             signature=infer_signature(example, pred), input_example=example)
+    mlflow.sklearn.log_model(
+        model,
+        artifact_path="model",
+        signature=infer_signature(example, pred),
+        input_example=example,
+        serialization_format="cloudpickle",
+    )
+
+
+def register_model_version(
+    question: str,
+    run_id: str | None = None,
+    *,
+    alias: str = "candidate",
+) -> str:
+    """Registra el artefacto model/ del run en el Model Registry y devuelve la versión.
+
+    - Crea el modelo registrado con descripción si todavía no existe.
+    - Actualiza la descripción del modelo si ha cambiado (no sobreescribe anotaciones
+      manuales: sólo actualiza cuando REGISTRY_DESCRIPTION difiere).
+    - Etiqueta la versión con el linaje completo: experimento, run de origen,
+      commit de git y versión de datos.
+    - Asigna el alias indicado (por defecto 'candidate') a la nueva versión.
+
+    Parámetros
+    ----------
+    question : str
+        'p1', 'p2' o 'p3'.  Determina el nombre del modelo en el registry.
+    run_id : str | None
+        Run de MLflow del que se toma el artefacto model/. Si es None se usa
+        el run activo en este momento.
+    alias : str
+        Alias que se asigna a la nueva versión (por defecto 'candidate').
+    """
+    import mlflow.sklearn  # noqa: F401  asegura que el flavour está importado
+
+    q = question.lower()
+    model_name = REGISTRY_NAME[q]
+    description = REGISTRY_DESCRIPTION[q]
+
+    client = mlflow.MlflowClient()
+
+    # --- Obtener metadatos del run -------------------------------------------
+    if run_id is None:
+        active = mlflow.active_run()
+        if active is None:
+            raise RuntimeError("register_model_version: no hay run activo ni se proporcionó run_id.")
+        run_id = active.info.run_id
+
+    run = client.get_run(run_id)
+    run_tags = run.data.tags
+    experiment_id = run.info.experiment_id
+    experiment = client.get_experiment(experiment_id)
+    experiment_name = experiment.name if experiment else experiment_id
+    data_version = run_tags.get("data_version", "desconocida")
+    git_commit = run_tags.get("git_commit", "desconocido")
+    model_tag = run_tags.get("model", q)
+    run_name = run.info.run_name or run_id
+
+    # --- Crear el modelo registrado si no existe (con descripción) --------------
+    try:
+        registered = client.get_registered_model(model_name)
+        # Actualiza descripción solo si cambió (preserva anotaciones manuales)
+        if registered.description != description:
+            client.update_registered_model(model_name, description=description)
+    except mlflow.exceptions.MlflowException:
+        client.create_registered_model(model_name, description=description)
+
+    # --- Registrar la versión desde el artefacto model/ del run ----------------
+    artifact_uri = f"runs:/{run_id}/model"
+    mv = client.create_model_version(
+        name=model_name,
+        source=artifact_uri,
+        run_id=run_id,
+        description=(
+            f"Pregunta: {q.upper()} · Estimador: {model_tag} · "
+            f"Experimento: {experiment_name} · Run: {run_name} ({run_id[:8]}) · "
+            f"Commit: {git_commit[:12]} · Versión datos: {data_version}"
+        ),
+    )
+
+    # --- Etiquetar la versión con el linaje completo ---------------------------
+    lineage_tags = {
+        "question": q.upper(),
+        "estimator": model_tag,
+        "experiment_name": experiment_name,
+        "source_run_id": run_id,
+        "source_run_name": run_name,
+        "git_commit": git_commit,
+        "git_dirty": run_tags.get("git_dirty", "unknown"),
+        "data_version": data_version,
+        "team": run_tags.get("team", TEAM),
+        "model_family": run_tags.get("model_family", ""),
+        "stage_of_work": run_tags.get("stage_of_work", ""),
+    }
+    for k, v in lineage_tags.items():
+        client.set_model_version_tag(model_name, mv.version, k, v)
+
+    # --- Asignar alias (MLflow >= 2.8) ----------------------------------------
+    try:
+        client.set_registered_model_alias(model_name, alias, mv.version)
+    except AttributeError:
+        # MLflow < 2.8: los alias no existen; solo se loguea una advertencia.
+        import warnings
+        warnings.warn(
+            f"Tu versión de MLflow no soporta aliases. Actualiza a >= 2.8 para usar '{alias}'.",
+            stacklevel=2,
+        )
+
+    from loguru import logger
+    logger.success(
+        f"Modelo registrado: {model_name} v{mv.version} "
+        f"[run={run_id[:8]}, commit={git_commit[:12]}, datos={data_version}]"
+    )
+    return mv.version

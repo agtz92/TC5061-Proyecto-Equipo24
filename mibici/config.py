@@ -12,6 +12,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 from loguru import logger
 
+# Asegurar UTF-8 en stdout/stderr para evitar UnicodeEncodeError con emojis en Windows
+import sys
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 load_dotenv()
 
 # --------------------------------------------------------------------------
@@ -167,6 +178,40 @@ SELECTION_METRIC = {
     "p1": ("val_wape", "min"),                       # error en viajes, unidad de decisión del operador
     "p2": ("val_expected_cost_per_1000", "min"),     # costo de la decisión de enviar camión
     "p3": ("train_silhouette", "max"),               # cohesión y separación (sin etiquetas)
+}
+
+# --------------------------------------------------------------------------
+# Model Registry: nombres y descripciones
+# --------------------------------------------------------------------------
+# Nombre de cada modelo en el registry.  Uso: REGISTRY_NAME["p1"], etc.
+REGISTRY_NAME = {
+    "p1": f"mibici-equipo24-p1-demanda",
+    "p2": f"mibici-equipo24-p2-riesgo",
+    "p3": f"mibici-equipo24-p3-grupos",
+}
+
+# Descripción que se escribe en el modelo al crearlo y al registrar cada versión.
+REGISTRY_DESCRIPTION = {
+    "p1": (
+        "Modelo de demanda (P1): predice los viajes que inician por estación y hora del "
+        "día siguiente (horizonte 24 h) usando features de rezago, calendario y capacidad. "
+        "Criterio de selección: val_wape mínimo. "
+        "Equipo: equipo24 · Proyecto: TC5061 MLOps MiBici."
+    ),
+    "p2": (
+        "Modelo de riesgo operativo (P2): clasifica cada estación-hora en vaciado, saturación "
+        "o normal para decidir si enviar un camión rebalanceador (horizonte 24 h). "
+        "Calibración isotónica con validación; umbral óptimo de costo asimétrico. "
+        "Criterio de selección: val_expected_cost_per_1000 mínimo. "
+        "Equipo: equipo24 · Proyecto: TC5061 MLOps MiBici."
+    ),
+    "p3": (
+        "Modelo de tipologías de estación (P3): agrupa las estaciones por perfil horario "
+        "(salidas y llegadas en día hábil y fin de semana) mediante clustering no supervisado. "
+        "Interfaz estándar sklearn: estandarización + PCA + centroide más cercano. "
+        "Criterio de selección: train_silhouette máximo. "
+        "Equipo: equipo24 · Proyecto: TC5061 MLOps MiBici."
+    ),
 }
 
 # --------------------------------------------------------------------------
