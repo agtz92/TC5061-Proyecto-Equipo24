@@ -69,6 +69,8 @@ primer commit del repositorio.
 
 Requiere Python 3.12 (también funciona con 3.11 y 3.13) y un servidor de MLflow.
 
+**macOS / Linux**
+
 ```bash
 git clone https://github.com/<usuario>/TC5061-Proyecto-Equipo24.git
 cd TC5061-Proyecto-Equipo24
@@ -79,30 +81,64 @@ pip install -r requirements.txt
 cp .env.example .env        # MIBICI_TEAM=equipo24 y la URI de MLflow
 ```
 
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/<usuario>/TC5061-Proyecto-Equipo24.git
+cd TC5061-Proyecto-Equipo24
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+pip install -r requirements.txt
+
+Copy-Item .env.example .env   # MIBICI_TEAM=equipo24 y la URI de MLflow
+```
+
+Si PowerShell bloquea la activación del entorno, ejecuta una vez
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. En `cmd` el entorno se activa con
+`.venv\Scripts\activate.bat` y el archivo se copia con `copy .env.example .env`.
+
 ### Servidor de tracking con base de datos
 
 El Model Registry de MLflow requiere un backend con base de datos, así que el servidor usa SQLite
 (`mlflow.db`, excluido de Git junto con `mlartifacts/` y `mlruns/`). En otra terminal, desde la raíz
-del repo:
+del repo y con el entorno virtual activado:
 
 ```bash
+# macOS / Linux
 mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts \
   --serve-artifacts --host 127.0.0.1 --port 5001
 ```
 
+```powershell
+# Windows (PowerShell, en una sola línea)
+mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlartifacts --serve-artifacts --host 127.0.0.1 --port 5001
+```
+
 Usamos el puerto **5001** porque en macOS el 5000 lo ocupa el receptor de AirPlay (responde 403). En Linux
-o Windows puede usarse `--port 5000`, ajustando la URI. Después, en la terminal de trabajo:
+o Windows puede usarse `--port 5000`, ajustando la URI en `.env`. Después, en la terminal de trabajo:
 
 ```bash
+# macOS / Linux
 export MLFLOW_TRACKING_URI=http://localhost:5001
 export MLFLOW_EXPERIMENT_NAME=mibici-equipo24
 ```
+
+```powershell
+# Windows (PowerShell)
+$env:MLFLOW_TRACKING_URI = "http://localhost:5001"
+$env:MLFLOW_EXPERIMENT_NAME = "mibici-equipo24"
+```
+
+`MIBICI_TEAM` y `MLFLOW_TRACKING_URI` también se leen de `.env` (`load_dotenv()` en `config.py`).
 
 ## Reproducir desde un clon limpio (MLflow Project)
 
 Todas las corridas se lanzan desde el MLflow Project (`MLproject`), nunca desde un notebook.
 `--env-manager local` usa el entorno virtual ya instalado con `requirements.txt`; sin esa bandera MLflow
-crea un entorno nuevo a partir de `python_env.yaml` (mismas versiones fijas; requiere `pyenv`).
+crea un entorno nuevo a partir de `python_env.yaml` (mismas versiones fijas; requiere `pyenv`, que en
+Windows es `pyenv-win`, por lo que ahí conviene usar siempre `--env-manager local`). Los comandos son los
+mismos en macOS, Linux y Windows.
 
 ```bash
 # 1. Ingesta: descarga 2022-01 a 2026-09, normaliza, limpia y escribe data_manifest.json
@@ -214,6 +250,16 @@ Prueba de punta a punta **sin internet** con datos sintéticos que imitan los fo
 
 ```bash
 make smoke
+```
+
+En Windows `make` no viene instalado (puede instalarse con `choco install make`). Sin él, los pasos
+equivalentes en PowerShell son:
+
+```powershell
+python tests/make_sample_data.py data/sample
+python -m mibici.dataset --source-dir data/sample --start 2025-01 --end 2026-02
+python -m mibici.features
+python -m pytest -q tests
 ```
 
 ## Buenas prácticas y dónde se aplican
