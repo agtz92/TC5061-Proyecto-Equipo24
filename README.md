@@ -291,6 +291,14 @@ python -m mibici.features
 python -m pytest -q tests
 ```
 
+### Pruebas unitarias
+
+Para ejecutar las pruebas unitarias clave del proyecto (procesamiento de datos, feature engineering y reproducibilidad del entrenamiento) con salida detallada:
+
+```bash
+pytest tests/test_pipeline.py -v
+```
+
 ## Buenas prácticas y dónde se aplican
 
 | Práctica | Cómo se aplica |
