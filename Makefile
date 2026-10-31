@@ -90,6 +90,11 @@ smoke:
 test:
 	$(PYTHON_INTERPRETER) -m pytest -q tests
 
+## Chequeos de seguridad: secretos y .gitignore, bandit y pip-audit
+.PHONY: security
+security:
+	$(PYTHON_INTERPRETER) security/run_checks.py
+
 
 #################################################################################
 # Self Documenting Commands                                                     #
