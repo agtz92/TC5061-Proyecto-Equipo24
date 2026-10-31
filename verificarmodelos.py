@@ -1,7 +1,10 @@
 import mlflow
- 
-# Usa la dirección de tu servidor de MLflow.
-mlflow.set_tracking_uri("http://127.0.0.1:5001")
+
+from mibici.config import MLFLOW_TRACKING_URI
+
+# La URI se toma de MLFLOW_TRACKING_URI (archivo .env o variable de entorno),
+# no se escribe en el código. Ver .env.example.
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
  
 nombres = [
     "Mibici-equipo24-P1-demanda",

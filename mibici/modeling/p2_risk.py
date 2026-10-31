@@ -86,7 +86,7 @@ def station_quantiles() -> pd.DataFrame:
     return duckdb.sql(f"""SELECT station_id,
                               quantile_cont(departures, {P2_BASELINE_QUANTILE}) AS q_dep,
                               quantile_cont(arrivals, {P2_BASELINE_QUANTILE}) AS q_arr
-                          FROM {train} GROUP BY 1""").df().set_index("station_id")
+                          FROM {train} GROUP BY 1""").df().set_index("station_id")  # nosec B608
 
 
 def baseline_predict(df: pd.DataFrame, q: pd.DataFrame) -> np.ndarray:

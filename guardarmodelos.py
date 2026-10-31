@@ -1,8 +1,11 @@
 from pathlib import Path
 import mlflow
- 
-# Cambia la dirección si tu servidor usa otra.
-mlflow.set_tracking_uri("http://localhost:5001")
+
+from mibici.config import MLFLOW_TRACKING_URI
+
+# La URI se toma de MLFLOW_TRACKING_URI (archivo .env o variable de entorno),
+# no se escribe en el código. Ver .env.example.
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 modelos = {
     "p1": "Mibici-equipo24-P1-demanda",  # así quedó registrado (con mayúsculas)

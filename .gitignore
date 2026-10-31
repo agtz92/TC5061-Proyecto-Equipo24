@@ -211,9 +211,19 @@ mlflow.db
 *.onnx
 *.pt
 
-# Credenciales y entorno
+# Credenciales y entorno (las variables se leen de .env; plantilla en .env.example)
 .env
 .env.*
 !.env.example
 *.pem
 *.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+credentials*.json
+service-account*.json
+*secret*.json
+.netrc
+*.sqlite
+*.sqlite3

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import subprocess
+import subprocess  # nosec B404 (solo git rev-parse/status con argumentos fijos)
 import tempfile
 
 import matplotlib
@@ -62,7 +62,10 @@ def git_info() -> dict[str, str]:
     """Commit actual y si hay cambios sin commit (para ligar el run al código)."""
 
     def run(*args):
-        return subprocess.run(["git", *args], cwd=PROJ_ROOT, capture_output=True, text=True).stdout.strip()
+        # Comando fijo "git" con argumentos definidos en este módulo (sin entrada externa).
+        return subprocess.run(  # nosec B603 B607
+            ["git", *args], cwd=PROJ_ROOT, capture_output=True, text=True
+        ).stdout.strip()
 
     commit = run("rev-parse", "HEAD") or "desconocido"
     dirty = "true" if run("status", "--porcelain", "--untracked-files=no") else "false"
