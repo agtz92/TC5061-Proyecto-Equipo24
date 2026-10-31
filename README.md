@@ -54,8 +54,11 @@ primer commit del repositorio.
 ├── references/            <- ML Canvas, propuesta y diagrama de arquitectura
 ├── reports/              <- Figuras y reportes HTML de validación
 │   ├── figures/           <- Figuras de los modelos
-│   └── deepchecks/        <- Reportes HTML (se generan al validar datasets)
+│   ├── deepchecks/        <- Reportes HTML (se generan al validar datasets)
+│   └── security/          <- Salidas de bandit, pip-audit y pruebas de seguridad (evidencia)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
+├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
+├── docs/seguridad.md      <- Revisión de seguridad: hallazgos, correcciones y riesgos aceptados
 └── mibici/                <- Módulo del proyecto
     ├── config.py          <- Rutas, fechas, partición, semillas, umbrales y MLflow (único lugar)
     ├── dataset.py         <- Ingesta reproducible y manifiesto de datos
@@ -321,6 +324,43 @@ Para ejecutar las pruebas unitarias clave del proyecto (procesamiento de datos, 
 pytest tests/test_pipeline.py -v
 ```
 
+### Chequeos de seguridad
+
+Un solo comando revisa credenciales y datos sensibles, analiza el código con
+[bandit](https://bandit.readthedocs.io/) y busca vulnerabilidades conocidas en las dependencias con
+[pip-audit](https://pypi.org/project/pip-audit/). Ambas herramientas vienen en `requirements.txt`.
+
+```bash
+python security/run_checks.py               # o: make security
+python security/run_checks.py --skip-audit  # sin pip-audit (no requiere internet)
+python security/run_checks.py --installed   # audita el entorno activo en vez de requirements.txt
+```
+
+| Paso | Qué revisa | Falla si... |
+|---|---|---|
+| 1. Higiene del repositorio (`tests/test_security.py`) | `.gitignore` cubre `.env`, datos, MLflow, modelos y llaves; nada sensible versionado; sin llaves, tokens ni contraseñas escritas; URI de MLflow solo por variable de entorno; servidor solo en `127.0.0.1`; fechas y columnas validadas antes de armar SQL | alguna prueba falla |
+| 2. Bandit | `mibici/`, `security/`, `guardarmodelos.py` y `verificarmodelos.py` (config en `[tool.bandit]` de `pyproject.toml`) | hay un hallazgo de severidad media o alta |
+| 3. pip-audit | Dependencias de `requirements.txt` contra las bases de PyPI/OSV | aparece una vulnerabilidad no justificada en `security/riesgos_aceptados.toml` |
+
+Las salidas quedan en `reports/security/` (`bandit.txt`, `pip_audit.txt`, `repo_hygiene.txt` y los JSON).
+Las pruebas de seguridad también corren con el resto de la suite (`pytest tests`). Los hallazgos de la
+revisión, lo que se corrigió y por qué se aceptan temporalmente los avisos de mlflow, pyarrow y setuptools
+están en [`docs/seguridad.md`](docs/seguridad.md).
+
+**Credenciales.** Ninguna credencial va en el código ni en Git. Copia `.env.example` a `.env` y escribe ahí
+los valores de tu máquina; `mibici/config.py` los lee con `python-dotenv`. Si el servidor de MLflow usa
+autenticación, `MLFLOW_TRACKING_USERNAME` y `MLFLOW_TRACKING_PASSWORD` van solo en tu `.env`.
+
+**Evidencia de ejecución**
+
+`python security/run_checks.py`: los tres pasos pasan.
+
+![Chequeos de seguridad](docs/img/seguridad_run_checks.png)
+
+`pytest tests/test_security.py -v`: 25 pruebas de seguridad.
+
+![Pruebas de seguridad con PyTest](docs/img/seguridad_pytest.png)
+
 ## Buenas prácticas y dónde se aplican
 
 | Práctica | Cómo se aplica |
@@ -333,7 +373,9 @@ pytest tests/test_pipeline.py -v
 | Notebooks solo para exploración | `notebooks/1.0-jagg-exploracion-viajes.ipynb`; la lógica vive en `mibici/` |
 | Configuración en un solo lugar | Rutas, fechas, semillas, umbrales y MLflow en `mibici/config.py` |
 | Dependencias fijas y entorno reproducible | `requirements.txt` con versiones exactas; `python_env.yaml` para `mlflow run` |
-| Datos, modelos, MLflow y credenciales fuera de Git | `.gitignore` excluye `data/`, `mlruns/`, `mlartifacts/`, `*.db`, modelos y `.env` |
+| Datos, modelos, MLflow y credenciales fuera de Git | `.gitignore` excluye `data/`, `mlruns/`, `mlartifacts/`, `*.db`, modelos, `.env` y llaves; `tests/test_security.py` lo verifica |
+| Configuración sensible por variables de entorno | `.env` (no versionado) a partir de `.env.example`; ningún script escribe la URI de MLflow en el código |
+| Seguridad del código y dependencias | `python security/run_checks.py`: bandit sin hallazgos y pip-audit sin vulnerabilidades no justificadas ([`docs/seguridad.md`](docs/seguridad.md)) |
 | Sin fuga de información | Features con corte a las 23:59 del día anterior; umbrales y perfiles solo con entrenamiento |
 
 ## Flujo de trabajo con Git

@@ -14,6 +14,7 @@ mensuales (≈21 millones de viajes) para no cargarlos completos en memoria.
 from __future__ import annotations
 
 from datetime import date, timedelta
+import re
 
 import duckdb
 from loguru import logger
@@ -38,6 +39,35 @@ from mibici.config import (
 app = typer.Typer(help="Construcción de features de MiBici.")
 
 LABELS = ["normal", "vaciado", "saturacion"]
+
+# ---------------------------------------------------------------------------
+# Seguridad: valores que se insertan en SQL de DuckDB
+# ---------------------------------------------------------------------------
+# DuckDB no acepta parámetros (?) dentro de read_parquet() ni en nombres de columna,
+# así que las consultas se arman con f-strings. Las rutas y umbrales vienen de
+# config.py; las fechas y columnas pueden llegar por CLI o desde otros módulos,
+# por eso se validan aquí antes de insertarlas (evita inyección SQL, bandit B608).
+_SQL_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def sql_timestamp(value) -> str:
+    """Normaliza una fecha a 'AAAA-MM-DD HH:MM:SS'; falla si el texto no es una fecha."""
+    try:
+        ts = pd.Timestamp(value)
+    except (TypeError, ValueError) as err:
+        raise ValueError(f"Fecha no válida para la consulta: {value!r}") from err
+    if pd.isna(ts):
+        raise ValueError(f"Fecha no válida para la consulta: {value!r}")
+    return ts.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def sql_columns(columns) -> list[str]:
+    """Acepta solo identificadores simples (letras, números y guion bajo)."""
+    cols = [str(col) for col in columns]
+    bad = [col for col in cols if not _SQL_IDENT.match(col)]
+    if bad:
+        raise ValueError(f"Nombres de columna no válidos: {bad}")
+    return cols
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +152,7 @@ def build_station_hour_panel(con: duckdb.DuckDBPyConnection) -> None:
         JOIN read_parquet('{STATIONS_PARQUET}') s ON s.station_id = a.station_id
         LEFT JOIN dep d ON d.station_id = a.station_id AND d.ts = h.ts
         LEFT JOIN arr r ON r.station_id = a.station_id AND r.ts = h.ts;
-    """)
+    """)  # nosec B608
 
 
 def add_lag_and_rolling_features(con: duckdb.DuckDBPyConnection) -> None:
@@ -153,7 +183,7 @@ def add_lag_and_rolling_features(con: duckdb.DuckDBPyConnection) -> None:
         WINDOW w_st  AS (PARTITION BY station_id ORDER BY ts),
                w_sh  AS (PARTITION BY station_id, hour(ts) ORDER BY ts),
                w_sdh AS (PARTITION BY station_id, dayofweek(ts), hour(ts) ORDER BY ts);
-    """)
+    """)  # nosec B608
 
 
 def add_p2_labels(con: duckdb.DuckDBPyConnection) -> None:
@@ -180,7 +210,7 @@ def add_p2_labels(con: duckdb.DuckDBPyConnection) -> None:
           (exp_dep_8w >= {m} AND departures = 0)::INT AS censor_empty,
           (exp_arr_8w >= {m} AND arrivals = 0)::INT AS censor_full
         FROM features;
-    """)
+    """)  # nosec B608
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +224,7 @@ def build_station_profiles(con: duckdb.DuckDBPyConnection, until: str = TRAIN_EN
     viajes circulares. Distingue estaciones residenciales (salidas de mañana),
     laborales (llegadas de mañana), mixtas y recreativas (fin de semana, circulares).
     """
+    until = sql_timestamp(until)
     trips = str(TRIPS_INTERIM_DIR / "trips_*.parquet")
     long = con.execute(f"""
         WITH t AS (SELECT * FROM read_parquet('{trips}') WHERE inicio <= TIMESTAMP '{until}'),
@@ -205,7 +236,7 @@ def build_station_profiles(con: duckdb.DuckDBPyConnection, until: str = TRAIN_EN
                  CASE WHEN dayofweek(fin) IN (0, 6) THEN 'we' ELSE 'wd' END FROM t)
         SELECT station_id, kind || '_' || dt || '_h' || lpad(h::VARCHAR, 2, '0') AS col, count(*) AS n
         FROM ev GROUP BY ALL
-    """).df()
+    """).df()  # nosec B608
     wide = long.pivot_table(index="station_id", columns="col", values="n", fill_value=0)
     for block in ["dep_wd", "dep_we", "arr_wd", "arr_we"]:
         cols = [f"{block}_h{h:02d}" for h in range(24)]
@@ -224,7 +255,7 @@ def build_station_profiles(con: duckdb.DuckDBPyConnection, until: str = TRAIN_EN
                      avg((origen_id = destino_id)::INT) AS pct_circular
               FROM t GROUP BY 1) d USING (station_id)
         LEFT JOIN (SELECT destino_id AS station_id, count(*) AS n FROM t GROUP BY 1) a USING (station_id)
-    """).df().set_index("station_id")
+    """).df().set_index("station_id")  # nosec B608
     prof = wide[sorted(wide.columns)].join(extra, how="inner")
     st = pd.read_parquet(STATIONS_PARQUET).set_index("station_id")[["lat", "lon", "capacity", "municipio"]]
     return prof.join(st, how="inner").reset_index()
@@ -235,9 +266,10 @@ def build_station_profiles(con: duckdb.DuckDBPyConnection, until: str = TRAIN_EN
 # ---------------------------------------------------------------------------
 def load_panel(start: str, end: str, columns: list[str] | None = None) -> pd.DataFrame:
     """Lee del panel procesado solo el periodo y las columnas necesarias."""
-    cols = ", ".join(columns) if columns else "*"
+    start, end = sql_timestamp(start), sql_timestamp(end)
+    cols = ", ".join(sql_columns(columns)) if columns else "*"
     q = f"""SELECT {cols} FROM read_parquet('{PANEL_PARQUET}')
-            WHERE ts BETWEEN TIMESTAMP '{start}' AND TIMESTAMP '{end}'"""
+            WHERE ts BETWEEN TIMESTAMP '{start}' AND TIMESTAMP '{end}'"""  # nosec B608
     return duckdb.sql(q).df()
 
 
@@ -262,21 +294,22 @@ def load_supervised_frame(
     Pertinencia: une en una sola tabla las variables de P1 y P2 sin usar nada
     posterior a las 23:59 del día anterior a cada hora predicha.
     """
+    start, end, seed = sql_timestamp(start), sql_timestamp(end), int(seed)
     base = f"""
         SELECT p.*, s.lat, s.lon
         FROM read_parquet('{PANEL_PARQUET}') p
         JOIN read_parquet('{STATIONS_PARQUET}') s USING (station_id)
         WHERE p.ts BETWEEN TIMESTAMP '{start}' AND TIMESTAMP '{end}'
-          AND p.dep_lag_168h IS NOT NULL AND p.arr_lag_168h IS NOT NULL"""
+          AND p.dep_lag_168h IS NOT NULL AND p.arr_lag_168h IS NOT NULL"""  # nosec B608
     if sample_rows:
-        n = duckdb.sql(f"SELECT count(*) FROM ({base})").fetchone()[0]
+        n = duckdb.sql(f"SELECT count(*) FROM ({base})").fetchone()[0]  # nosec B608
         frac = min(1.0, sample_rows / max(n, 1))
         keep = f"(hash(station_id, ts, {seed}) % 1000000) < {int(frac * 1_000_000)}"
         if keep_all_risk:
             keep = f"({keep} OR p2_label <> 'normal')"
-        base = f"SELECT * FROM ({base}) WHERE {keep}"
-    raw_cols = [c for c in columns if c not in CALENDAR_COLS] + ["ts"]
-    df = duckdb.sql(f"SELECT {', '.join(dict.fromkeys(raw_cols))} FROM ({base}) ORDER BY station_id, ts").df()
+        base = f"SELECT * FROM ({base}) WHERE {keep}"  # nosec B608
+    raw_cols = sql_columns([c for c in columns if c not in CALENDAR_COLS] + ["ts"])
+    df = duckdb.sql(f"SELECT {', '.join(dict.fromkeys(raw_cols))} FROM ({base}) ORDER BY station_id, ts").df()  # nosec B608
     df = add_calendar_features(df)
     num = [c for c in df.columns if c not in ("ts", "p2_label") and df[c].dtype != object]
     df[num] = df[num].astype("float32")
@@ -296,7 +329,7 @@ def main():
     logger.info("Calculando rezagos, promedios móviles y etiquetas de P2...")
     add_lag_and_rolling_features(con)
     add_p2_labels(con)
-    con.execute(f"COPY (SELECT * FROM features ORDER BY station_id, ts) TO '{PANEL_PARQUET}' (FORMAT parquet)")
+    con.execute(f"COPY (SELECT * FROM features ORDER BY station_id, ts) TO '{PANEL_PARQUET}' (FORMAT parquet)")  # nosec B608
     n, n_st = con.execute("SELECT count(*), count(DISTINCT station_id) FROM features").fetchone()
     logger.info(f"Panel: {n:,} filas estación-hora, {n_st} estaciones")
     prof = build_station_profiles(con)

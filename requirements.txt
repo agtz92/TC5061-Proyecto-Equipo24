@@ -2,10 +2,10 @@
 # Instalar con: pip install -r requirements.txt
 
 # Datos e ingesta
-requests==2.32.3
+requests==2.34.2  # >=2.33.0 corrige CVE-2024-47081 y CVE-2026-25645
 pandas==2.2.3
 numpy==2.2.5
-pyarrow==19.0.1
+pyarrow==19.0.1  # mlflow 2.22 exige pyarrow<20 (ver security/riesgos_aceptados.toml)
 duckdb==1.2.2
 
 # Modelado y seguimiento de experimentos
@@ -21,18 +21,21 @@ matplotlib==3.10.1
 click==8.1.8
 typer==0.15.2
 loguru==0.7.3
-python-dotenv==1.1.0
+python-dotenv==1.2.4  # >=1.2.2 corrige CVE-2026-28684
 tqdm==4.67.1
 
 # Notebooks y calidad de código
-jupyterlab==4.4.1
+jupyterlab==4.6.5  # >=4.6.4 corrige 11 avisos de pip-audit
 ipykernel==6.29.5
 ruff==0.11.8
-pytest==8.3.5
+pytest==9.0.3  # corrige CVE-2025-71176
 # calidad de datos (deepchecks)
 deepchecks==0.19.1
-#Setuptool
-setuptool<82
+# seguridad: análisis estático (bandit) y de dependencias (pip-audit)
+bandit==1.9.4
+pip-audit==2.10.1
+# deepchecks 0.19.1 importa pkg_resources, que setuptools 82 elimina
+setuptools<82
  
 # Módulo del proyecto en modo editable
 -e .

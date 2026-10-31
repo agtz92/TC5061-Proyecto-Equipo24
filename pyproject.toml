@@ -18,6 +18,12 @@ classifiers = [
 requires-python = ">=3.11,<3.14"
 
 
+[tool.bandit]
+# Análisis estático de seguridad: python security/run_checks.py
+# Las pruebas usan assert y subprocess a propósito; no se analizan.
+# Ojo: bandit compara por subcadena ("data" excluiría mibici/dataset.py).
+exclude_dirs = ["tests", "notebooks", ".venv"]
+
 [tool.ruff]
 line-length = 99
 src = ["mibici"]

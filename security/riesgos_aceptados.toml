@@ -1,0 +1,44 @@
+# Vulnerabilidades conocidas que el equipo acepta de forma temporal.
+#
+# security/run_checks.py ejecuta pip-audit y FALLA si aparece una vulnerabilidad
+# en un paquete que no esté aquí. La aceptación es por paquete Y versión exacta:
+# si alguien cambia la versión, la excepción deja de aplicar y hay que revisarla.
+#
+# Cada entrada documenta por qué no se actualiza ahora y qué mitiga el riesgo.
+# Fecha de revisión: si vence, se vuelve a correr pip-audit y se decide de nuevo.
+
+[[aceptado]]
+paquete = "mlflow"
+version = "2.22.0"
+motivo = """
+Los avisos afectan sobre todo al servidor de tracking (path traversal, SSRF,
+DNS rebinding, endpoints sin autenticación), al AI Gateway, a model serving y
+a integraciones que el proyecto no usa (SageMaker, CrewAI, Databricks).
+Mitigación: cada integrante corre el servidor solo en su equipo con
+--host 127.0.0.1 (README), sin exponerlo a la red, y solo se cargan modelos
+que el propio equipo registró. Pasar a mlflow 3.x cambia MLproject, el Model
+Registry y la API de modelos, así que se hará en una rama dedicada.
+"""
+revisar = "2026-12-01"
+
+[[aceptado]]
+paquete = "pyarrow"
+version = "19.0.1"
+motivo = """
+CVE-2026-25087 (use-after-free en Arrow C++), corregido en 23.0.1. mlflow 2.22
+exige pyarrow<20, así que se actualiza junto con mlflow. Mitigación: el
+pipeline solo lee archivos Parquet que él mismo genera a partir del portal de
+MiBici; no procesa archivos Arrow/Parquet de terceros.
+"""
+revisar = "2026-12-01"
+
+[[aceptado]]
+paquete = "setuptools"
+version = "81.0.0"
+motivo = """
+Avisos al construir sdists y al instalar wheels maliciosos en Windows
+(corregidos en 83/84). deepchecks 0.19.1 importa pkg_resources, que setuptools
+82 elimina, por eso se fija <82. Mitigación: setuptools solo se usa al instalar
+dependencias fijadas desde PyPI; el proyecto no publica paquetes.
+"""
+revisar = "2026-12-01"
