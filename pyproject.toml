@@ -18,6 +18,19 @@ classifiers = [
 requires-python = ">=3.11,<3.14"
 
 
+[tool.pytest.ini_options]
+# `pytest` desde la raíz corre toda la suite de tests/ (unitarias, DeepChecks y seguridad).
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
+# Avisos internos de librerías de terceros (deepchecks, pkg_resources) que no dependen del proyecto.
+filterwarnings = [
+    "ignore::DeprecationWarning:(deepchecks|matplotlib|mlflow|ipykernel|pyparsing).*",
+    "ignore::FutureWarning:deepchecks.*",
+    "ignore::UserWarning:mlflow.*",
+    "ignore:pkg_resources is deprecated:UserWarning",
+]
+
 [tool.bandit]
 # Análisis estático de seguridad: python security/run_checks.py
 # Las pruebas usan assert y subprocess a propósito; no se analizan.

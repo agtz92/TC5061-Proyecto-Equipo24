@@ -300,6 +300,10 @@ python -m mibici.validation --question p1 --sample-rows 20000
 integridad de los perfiles P3. Los reportes no contienen datos personales: las entradas de P1/P2 son
 features agregadas por estación y hora.
 
+`python -m mibici.validation --question all`: se generan los siete reportes de DeepChecks.
+
+![Validación con DeepChecks](docs/img/deepchecks_validacion.png)
+
 Prueba de punta a punta **sin internet** con datos sintéticos que imitan los formatos del portal:
 
 ```bash
@@ -316,13 +320,54 @@ python -m mibici.features
 python -m pytest -q tests
 ```
 
-### Pruebas unitarias
+### Pruebas y chequeos
 
-Para ejecutar las pruebas unitarias clave del proyecto (procesamiento de datos, feature engineering y reproducibilidad del entrenamiento) con salida detallada:
+Todas las pruebas viven en `tests/`, un archivo por componente del módulo `mibici/`. La configuración de
+pytest está en `pyproject.toml` (`[tool.pytest.ini_options]`), así que **un solo comando** corre la suite
+completa desde la raíz del repositorio:
 
 ```bash
-pytest tests/test_pipeline.py -v
+pytest            # o: make test
 ```
+
+| Archivo | Qué prueba | Casos límite que cubre |
+|---|---|---|
+| `tests/test_dataset.py` | Ingesta: decodificación Latin-1/UTF-8, los dos formatos de fecha del portal y limpieza | Anclajes fallidos, columnas personales que deben eliminarse |
+| `tests/test_pipeline.py` | Procesamiento de datos, feature engineering y **reproducibilidad del entrenamiento** (misma semilla, mismas predicciones y métricas; otra semilla, predicciones distintas) | Umbral exacto de anclaje fallido, duraciones de 0 s, negativas y de 3 h, duplicados, DataFrame vacío, festivos y quincenas en años bisiestos, modelo no soportado, demanda nula |
+| `tests/test_validation.py` | Validación de datos con DeepChecks: metadatos de features y etiqueta, reportes HTML de P1, P2 y P3 | Pregunta inválida |
+| `tests/test_security.py` | Higiene del repositorio: `.gitignore`, secretos, URI de MLflow por variable de entorno, SQL seguro | Intentos de inyección SQL |
+| `tests/test_env.py` | `python_env.yaml` usa las mismas versiones que `requirements.txt` | |
+
+`tests/make_sample_data.py` genera datos sintéticos para la prueba de punta a punta (`make smoke`).
+`tests/test_model_registry.py` no tiene pruebas de pytest: es un script que verifica los modelos
+`@champion` contra un servidor de MLflow en marcha (`python tests/test_model_registry.py`).
+
+Para correr **todo** (pruebas, validación de datos con DeepChecks y chequeos de seguridad):
+
+```bash
+make check
+```
+
+En Windows sin `make`, los mismos tres pasos son:
+
+```powershell
+pytest
+python -m mibici.validation --question all
+python security/run_checks.py
+```
+
+Algunas variantes útiles:
+
+```bash
+pytest tests/test_pipeline.py -v      # solo las pruebas de procesamiento, features y reproducibilidad
+pytest -k reproducibility             # solo la prueba de reproducibilidad
+```
+
+**Evidencia de ejecución**
+
+`pytest -v`: las 36 pruebas de la suite pasan.
+
+![Suite completa de pytest](docs/img/pruebas_pytest_suite.png)
 
 ### Chequeos de seguridad
 

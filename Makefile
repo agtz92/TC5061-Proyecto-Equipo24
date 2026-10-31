@@ -88,7 +88,16 @@ smoke:
 ## Pruebas unitarias
 .PHONY: test
 test:
-	$(PYTHON_INTERPRETER) -m pytest -q tests
+	$(PYTHON_INTERPRETER) -m pytest
+
+## Validacion de datos con DeepChecks (reportes HTML en reports/deepchecks/)
+.PHONY: validate
+validate:
+	$(PYTHON_INTERPRETER) -m mibici.validation --question all
+
+## Todo en un comando: pruebas, validacion de datos y chequeos de seguridad
+.PHONY: check
+check: test validate security
 
 ## Chequeos de seguridad: secretos y .gitignore, bandit y pip-audit
 .PHONY: security
