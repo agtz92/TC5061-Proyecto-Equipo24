@@ -1,0 +1,8 @@
+pip-audit sobre requirements.txt: 194 paquetes revisados (2026-10-31)
+
+Sin vulnerabilidades nuevas: todas las dependencias pasan o tienen riesgo aceptado.
+
+Riesgos aceptados y documentados en security/riesgos_aceptados.toml:
+  pyarrow==19.0.1: 1 aviso(s); revisar antes de 2026-12-01
+  mlflow==2.22.0: 30 aviso(s); revisar antes de 2026-12-01
+  setuptools==81.0.0: 2 aviso(s); revisar antes de 2026-12-01
