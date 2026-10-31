@@ -15,8 +15,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-# Solo se usa para leer el commit de git con argumentos fijos.
-import subprocess  # nosec B404
+import subprocess  # nosec B404 (solo git rev-parse/status con argumentos fijos)
 import tempfile
 
 import matplotlib
