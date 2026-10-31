@@ -52,12 +52,15 @@ primer commit del repositorio.
 ├── models/                <- Modelos serializados (ignorado por Git)
 ├── notebooks/             <- Solo exploración: 1.0-jagg-exploracion-viajes.ipynb
 ├── references/            <- ML Canvas, propuesta y diagrama de arquitectura
-├── reports/figures/       <- Figuras para reportes
+├── reports/              <- Figuras y reportes HTML de validación
+│   ├── figures/           <- Figuras de los modelos
+│   └── deepchecks/        <- Reportes HTML (se generan al validar datasets)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 └── mibici/                <- Módulo del proyecto
     ├── config.py          <- Rutas, fechas, partición, semillas, umbrales y MLflow (único lugar)
     ├── dataset.py         <- Ingesta reproducible y manifiesto de datos
     ├── features.py        <- Panel estación × hora, rezagos, etiquetas P2 y perfiles P3
+    ├── validation.py      <- Validación de integridad y drift con Deepchecks
     ├── modeling/train.py  <- CLI de entrenamiento (entry point `train` de MLproject)
     ├── modeling/tracking.py <- Registro en MLflow: tags, parámetros, figuras y modelo
     ├── modeling/p1_demand.py, p2_risk.py, p3_clusters.py <- Modelos y evaluación por pregunta
@@ -271,9 +274,28 @@ Los mismos pasos como módulos de Python (útil para depurar):
 python -m mibici.dataset
 python -m mibici.dataset verify          # comprueba los CSV contra el manifiesto
 python -m mibici.features
+python -m mibici.validation --question all  # valida P1, P2 y perfiles P3
 python -m mibici.modeling.train run --question p1 --model rf --n-estimators 300
 python -m mibici.modeling.train baselines
 ```
+
+### Validación de datasets
+
+Ejecuta la validación después de construir los datos procesados con `python -m mibici.features`.
+Deepchecks revisa la integridad de entrenamiento y prueba de P1 y P2, compara ambos periodos para
+identificar drift y posibles problemas de partición, y revisa la integridad de los perfiles de estaciones
+de P3. Para P1 y P2 se usa una muestra determinista de hasta 10,000 filas por conjunto de forma
+predeterminada; ajusta el tamaño con `--sample-rows`.
+
+```bash
+python -m mibici.validation --question all
+python -m mibici.validation --question p1 --sample-rows 20000
+```
+
+`--question` acepta `all`, `p1`, `p2` o `p3`. La opción `all` genera siete reportes HTML en
+`reports/deepchecks/`: integridad de train y test, y comparación train/test para P1 y P2, además de
+integridad de los perfiles P3. Los reportes no contienen datos personales: las entradas de P1/P2 son
+features agregadas por estación y hora.
 
 Prueba de punta a punta **sin internet** con datos sintéticos que imitan los formatos del portal:
 
