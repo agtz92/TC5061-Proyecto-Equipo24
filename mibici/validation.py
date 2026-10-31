@@ -63,7 +63,8 @@ def _supervised_dataset(
 
 def _save_integrity_report(dataset: Dataset, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    data_integrity().run(dataset).save_as_html(str(path))
+    resultado=data_integrity().run(dataset)
+    resultado.save_as_html(str(path),as_widget=False,connected=False)
     return path
 
 

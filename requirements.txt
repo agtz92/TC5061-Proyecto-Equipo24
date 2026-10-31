@@ -31,5 +31,8 @@ ruff==0.11.8
 pytest==8.3.5
 # calidad de datos (deepchecks)
 deepchecks==0.19.1
+#Setuptool
+setuptool<82
+ 
 # Módulo del proyecto en modo editable
 -e .
