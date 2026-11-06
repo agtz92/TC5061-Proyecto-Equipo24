@@ -39,3 +39,8 @@ setuptools<82
  
 # Módulo del proyecto en modo editable
 -e .
+
+# API REST del modelo (mibici/api)
+fastapi==0.146.0
+uvicorn==0.54.0
+httpx==0.28.1  # cliente de pruebas de FastAPI (TestClient)
