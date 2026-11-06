@@ -269,6 +269,68 @@ El entry point también funciona para P2 y P3.
 | P2 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p2 -P model=...` |
 | P3 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p3 -P model=...` |
 
+### API REST del modelo (FastAPI)
+
+`mibici/api/` sirve el modelo de demanda (P1) como API REST. Al arrancar, la API **recupera el modelo del
+Model Registry por nombre y alias**: `models:/mibici-equipo24-p1-demanda@champion`. La versión que
+apunta a `@champion` se resuelve en ese momento y aparece en `/health`, de modo que promover otra versión no
+requiere cambiar el código.
+
+| Variable de entorno | Por defecto | Uso |
+|---|---|---|
+| `MLFLOW_TRACKING_URI` | `http://localhost:5001` (de `.env`) | Servidor de MLflow con el registry. Dentro de un contenedor: `http://host.containers.internal:5001` |
+| `MODEL_URI` | `models:/mibici-equipo24-p1-demanda@champion` | URI del modelo. También acepta una carpeta local con el modelo ya descargado del registry (para empaquetarlo en la imagen) |
+| `MODEL_ALIAS` | `champion` | Alias del registry si no se indica `MODEL_URI` |
+
+**Opción elegida:** cargar el modelo desde el registry con `MLFLOW_TRACKING_URI`. Así la API siempre usa la
+versión en producción y el linaje (run, commit y versión de datos) queda en MLflow. La alternativa de
+empaquetar el modelo descargado se activa con `MODEL_URI=/ruta/al/modelo`, sin cambiar el código.
+
+**Endpoints**
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /health` | Estado del servicio, modelo y versión cargados |
+| `POST /predict` | Predicción para una estación en una hora |
+| `POST /predict/lote` | Predicción para hasta 1,000 estación-horas en una sola petición |
+| `GET /docs` | Documentación interactiva (Swagger) generada por FastAPI |
+
+**Validación de entradas y salidas (Pydantic, `mibici/api/schemas.py`).** La entrada son las 13 variables
+`P1_FEATURES` con las que se entrenó el modelo. Se rechaza con HTTP 422 cualquier petición con variables
+faltantes o desconocidas, con valores fuera de rango (hora 0-23, día 0-6, mes 1-12, indicadores 0/1, rezagos
+no negativos, capacidad 1-100, coordenadas dentro del Área Metropolitana de Guadalajara) o con `is_weekend`
+inconsistente con `dow`. La salida se recorta a valores no negativos y se valida que sea finita.
+
+**Levantar la API en local** (con el servidor de MLflow corriendo y los modelos registrados):
+
+```bash
+uvicorn mibici.api.main:app --host 127.0.0.1 --port 8000
+```
+
+**Ejemplo de petición y respuesta**
+
+```bash
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d '{
+  "hour": 8, "dow": 1, "month": 9, "is_weekend": 0, "is_holiday": 0, "is_quincena": 0,
+  "dep_lag_24h": 6, "dep_lag_168h": 7, "dep_mean_7d": 5.4, "dep_mean_28d": 5.9,
+  "capacity": 19, "lat": 20.6767, "lon": -103.3475
+}'
+```
+
+```json
+{"viajes_estimados": 6.865}
+```
+
+`GET /health` responde:
+
+```json
+{"estado": "ok", "modelo": "mibici-equipo24-p1-demanda", "version": "1",
+ "uri": "models:/mibici-equipo24-p1-demanda@champion"}
+```
+
+Las pruebas de la API (`tests/test_api.py`) usan un modelo falso, así que corren sin servidor de MLflow
+como parte de `pytest`.
+
 ### Sin MLflow Project
 
 Los mismos pasos como módulos de Python (útil para depurar):
