@@ -1,0 +1,21 @@
+# Dependencias de ejecución de la API (mibici/api) para la imagen de contenedor.
+# Mismas versiones fijas que requirements.txt, sin notebooks, pruebas ni herramientas de calidad.
+# El modelo se entrenó con estas versiones de scikit-learn, pandas y numpy: no cambiarlas por separado.
+
+# API REST
+fastapi==0.146.0
+uvicorn==0.54.0
+
+# Carga del modelo desde el Model Registry y predicción
+mlflow==2.22.0
+scikit-learn==1.6.1
+pandas==2.2.3
+numpy==2.2.5
+pyarrow==19.0.1  # mlflow 2.22 exige pyarrow<20
+sqlalchemy==2.0.40  # mlflow 2.22 no es compatible con SQLAlchemy 2.1
+matplotlib==3.10.1  # dependencia de mlflow; misma versión que en entrenamiento
+requests==2.34.2  # >=2.33.0 corrige CVE-2024-47081 y CVE-2026-25645
+
+# mibici/config.py
+python-dotenv==1.2.4  # >=1.2.2 corrige CVE-2026-28684
+loguru==0.7.3

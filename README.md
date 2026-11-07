@@ -45,6 +45,9 @@ primer commit del repositorio.
 ├── Makefile               <- Atajos: make data, make features, make experiment, make smoke
 ├── data_manifest.json     <- Versión de los datos (se genera con la ingesta; sí se versiona)
 ├── requirements.txt       <- Dependencias con versión fija
+├── requirements-api.txt   <- Dependencias de ejecución de la API (las que instala la imagen)
+├── Containerfile          <- Imagen OCI de la API (formato Dockerfile; Podman y Docker)
+├── .dockerignore          <- Archivos que no entran al contexto de construcción de la imagen
 ├── data/                  <- Ignorado por Git
 │   ├── raw/               <- CSV originales descargados del portal
 │   ├── interim/           <- Parquet por mes, ya normalizado y sin datos personales
@@ -330,6 +333,77 @@ curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -
 
 Las pruebas de la API (`tests/test_api.py`) usan un modelo falso, así que corren sin servidor de MLflow
 como parte de `pytest`.
+
+### Contenedor de la API (Containerfile)
+
+El `Containerfile` de la raíz empaqueta la API con todas sus dependencias en una imagen que cumple el
+estándar OCI. Usa el formato Dockerfile, así que sirve tanto con Podman como con Docker.
+
+| Elemento | Qué hace |
+|---|---|
+| Imagen base | `python:3.12-slim-bookworm`, la misma versión de Python con la que se entrenó el modelo |
+| Dependencias | `requirements-api.txt`: solo lo necesario para servir el modelo (FastAPI, Uvicorn, MLflow, scikit-learn, pandas, numpy, python-dotenv, loguru), con las mismas versiones fijas que `requirements.txt`. Se instalan en una capa propia, que se reutiliza mientras no cambien |
+| Código | Solo el paquete `mibici/`. `.dockerignore` deja fuera `.env`, `.venv`, `data/`, `models/`, `mlflow.db`, pruebas, reportes y notebooks |
+| Seguridad | Se ejecuta con un usuario sin privilegios (`appuser`, uid 10001) y sin credenciales dentro de la imagen |
+| Arranque | `uvicorn mibici.api.main:app --host 0.0.0.0 --port 8000` (puerto 8000 expuesto) |
+| Variables | `MLFLOW_TRACKING_URI=http://host.containers.internal:5001` y `MODEL_ALIAS=champion` por defecto. Se pueden cambiar con `-e` al ejecutar, igual que `MODEL_URI` |
+
+El modelo **no** se copia a la imagen. Al arrancar, el contenedor lo recupera del Model Registry, así que la
+misma imagen sirve cualquier versión que tenga el alias `@champion`.
+
+**1. Construir la imagen** (desde la raíz del repo):
+
+```bash
+# Podman (lee el Containerfile automáticamente)
+podman build -t mibici-api:1.0.0 .
+
+# Docker (hay que indicar el archivo)
+docker build -f Containerfile -t mibici-api:1.0.0 .
+```
+
+**2. Ejecutar el contenedor** con el servidor de MLflow corriendo en el anfitrión (puerto 5001) y el modelo
+P1 registrado con el alias `champion`:
+
+```bash
+# Podman
+podman run --rm -p 8000:8000 --name mibici-api mibici-api:1.0.0
+
+# Docker: el anfitrión se llama host.docker.internal
+docker run --rm -p 8000:8000 --name mibici-api \
+  -e MLFLOW_TRACKING_URI=http://host.docker.internal:5001 mibici-api:1.0.0
+```
+
+En Linux con Docker, agrega `--add-host=host.docker.internal:host-gateway`. Si el contenedor no alcanza el
+servidor, levanta MLflow con `--host 0.0.0.0` en lugar de `127.0.0.1`.
+
+**Alternativa sin servidor de MLflow:** descarga el modelo del registry y móntalo como volumen de solo
+lectura:
+
+```bash
+mlflow artifacts download --artifact-uri "models:/mibici-equipo24-p1-demanda@champion" --dst-path models/p1
+podman run --rm -p 8000:8000 -v "$(pwd)/models/p1:/modelo:ro" -e MODEL_URI=/modelo mibici-api:1.0.0
+```
+
+En PowerShell, usa `-v "${PWD}/models/p1:/modelo:ro"`. En este modo, `/health` reporta `"version": "local"`.
+
+**3. Probar el contenedor.** Es la misma API de la sección anterior en `http://localhost:8000`:
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d '{
+  "hour": 8, "dow": 1, "month": 9, "is_weekend": 0, "is_holiday": 0, "is_quincena": 0,
+  "dep_lag_24h": 6, "dep_lag_168h": 7, "dep_mean_7d": 5.4, "dep_mean_28d": 5.9,
+  "capacity": 19, "lat": 20.6767, "lon": -103.3475
+}'
+```
+
+La documentación interactiva queda en `http://localhost:8000/docs`. Si el modelo no se puede cargar al
+arrancar (servidor inaccesible o alias inexistente), el contenedor termina y el error aparece en la terminal.
+Si lo ejecutas en segundo plano (`-d`, sin `--rm`), consulta el error con `podman logs mibici-api` o
+`docker logs mibici-api`.
+
+El `Containerfile` no declara `HEALTHCHECK` porque el formato de imagen OCI no lo admite (Podman lo
+ignora). Para monitorear el servicio, consulta `GET /health`.
 
 ### Sin MLflow Project
 
