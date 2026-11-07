@@ -1,0 +1,33 @@
+# Contexto de construcción de la imagen (lo leen Podman y Docker).
+# Solo se copian requirements-api.txt y mibici/; todo lo demás queda fuera.
+
+# Credenciales y entornos
+.env
+.env.*
+.venv
+venv/
+env/
+
+# Datos, modelos y artefactos de MLflow (el modelo se carga del registry)
+data/
+models/
+mlruns/
+mlartifacts/
+mlflow.db
+
+# Repositorio, documentación y reportes
+.git
+.github
+docs/
+notebooks/
+references/
+reportes/
+reports/
+security/
+tests/
+
+# Cachés
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
