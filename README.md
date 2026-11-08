@@ -62,6 +62,7 @@ primer commit del repositorio.
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
 ├── docs/seguridad.md      <- Revisión de seguridad: hallazgos, correcciones y riesgos aceptados
+├── docs/contenedor.md     <- Evidencia de construcción, ejecución y pruebas del contenedor de la API
 └── mibici/                <- Módulo del proyecto
     ├── config.py          <- Rutas, fechas, partición, semillas, umbrales y MLflow (único lugar)
     ├── dataset.py         <- Ingesta reproducible y manifiesto de datos
@@ -70,6 +71,7 @@ primer commit del repositorio.
     ├── modeling/train.py  <- CLI de entrenamiento (entry point `train` de MLproject)
     ├── modeling/tracking.py <- Registro en MLflow: tags, parámetros, figuras y modelo
     ├── modeling/p1_demand.py, p2_risk.py, p3_clusters.py <- Modelos y evaluación por pregunta
+    ├── api/main.py, api/schemas.py <- API REST (FastAPI) del modelo P1 y sus esquemas Pydantic
     ├── modeling/predict.py<- Predicción batch (siguiente entrega)
     └── plots.py           <- Gráficas compartidas (siguiente entrega)
 ```
@@ -396,6 +398,68 @@ curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -
   "capacity": 19, "lat": 20.6767, "lon": -103.3475
 }'
 ```
+
+Respuestas esperadas (HTTP 200):
+
+```json
+{"estado": "ok", "modelo": "mibici-equipo24-p1-demanda", "version": "1",
+ "uri": "models:/mibici-equipo24-p1-demanda@champion"}
+```
+
+```json
+{"viajes_estimados": 6.865}
+```
+
+**Petición por lote** (varias estación-horas en una sola llamada):
+
+```bash
+curl -X POST http://localhost:8000/predict/lote -H "Content-Type: application/json" -d '{
+  "registros": [
+    {"hour": 8, "dow": 1, "month": 9, "is_weekend": 0, "is_holiday": 0, "is_quincena": 0,
+     "dep_lag_24h": 6, "dep_lag_168h": 7, "dep_mean_7d": 5.4, "dep_mean_28d": 5.9,
+     "capacity": 19, "lat": 20.6767, "lon": -103.3475},
+    {"hour": 18, "dow": 4, "month": 9, "is_weekend": 0, "is_holiday": 0, "is_quincena": 0,
+     "dep_lag_24h": 12, "dep_lag_168h": 10, "dep_mean_7d": 11.2, "dep_mean_28d": 10.5,
+     "capacity": 24, "lat": 20.6767, "lon": -103.3475}
+  ]
+}'
+```
+
+Respuesta obtenida en la prueba del contenedor con el modelo montado como volumen (`MODEL_URI=/modelo`,
+ver [`docs/contenedor.md`](docs/contenedor.md)):
+
+```json
+{"modelo": "mibici-equipo24-p1-demanda", "version": "local",
+ "predicciones": [{"viajes_estimados": 2.425}, {"viajes_estimados": 8.03}]}
+```
+
+Las predicciones salen en el mismo orden que los registros enviados. Los valores exactos dependen de la
+versión del modelo que se cargue.
+
+**En Windows (PowerShell)**, `curl` es un alias de `Invoke-WebRequest`; usa `Invoke-RestMethod`:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+
+$body = @{
+  hour = 8; dow = 1; month = 9; is_weekend = 0; is_holiday = 0; is_quincena = 0
+  dep_lag_24h = 6; dep_lag_168h = 7; dep_mean_7d = 5.4; dep_mean_28d = 5.9
+  capacity = 19; lat = 20.6767; lon = -103.3475
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8000/predict -Method Post -Body $body -ContentType "application/json"
+```
+
+**Entrada inválida.** Una petición con `"hour": 25` no llega al modelo; la API responde HTTP 422 con el campo
+que falló:
+
+```json
+{"detail": [{"type": "less_than_equal", "loc": ["body", "hour"],
+             "msg": "Input should be less than or equal to 23", "input": 25, "ctx": {"le": 23}}]}
+```
+
+La evidencia completa de construcción (`podman build`), ejecución (`podman run`) y pruebas de los endpoints
+está en [`docs/contenedor.md`](docs/contenedor.md).
 
 La documentación interactiva queda en `http://localhost:8000/docs`. Si el modelo no se puede cargar al
 arrancar (servidor inaccesible o alias inexistente), el contenedor termina y el error aparece en la terminal.
