@@ -482,6 +482,41 @@ python -m mibici.modeling.train run --question p1 --model rf --n-estimators 300
 python -m mibici.modeling.train baselines
 ```
 
+### Monitoreo en producción y conjuntos de datos (Reference vs. Current)
+
+Para evaluar deriva de variables (*Data Drift*) y desempeño del modelo (*Concept Drift*) en producción:
+
+* **Conjunto de Referencia (`reference`):** Periodo de entrenamiento `2022-01-01` a `2025-06-30` (371 estaciones, distribución base aprendida por el modelo).
+* **Conjunto Actual (`current`):** Periodo posterior de producción en datos abiertos `2026-01-01` a `2026-09-30` (469 estaciones, refleja la expansión de la red de MiBici y el regreso a clases de otoño).
+
+Para preparar y exportar los datasets con las variables de inferencia (`P1_FEATURES`), etiquetas reales (`departures`) y predicciones del modelo campeón:
+
+```bash
+python -m mibici.monitoring
+```
+
+Los datasets generados se guardan en `data/monitoring/reference.parquet` y `data/monitoring/current.parquet` (junto con versiones `.csv`). Consulta [`docs/monitoreo_datos.md`](docs/monitoreo_datos.md) para ver la justificación y memoria técnica detallada.
+
+#### Reporte de Data Drift y Calidad de Datos con Evidently
+
+Para generar el reporte interactivo de calidad de datos, deriva de variables por prueba estadística y métricas de regresión en producción:
+
+```bash
+# Ejecución del reporte de drift con Evidently
+.venv-monitoring\Scripts\python.exe mibici\drift_report.py
+```
+
+Artefactos generados:
+* `reports/evidently/drift_report.html`: Reporte visual interactivo con distribuciones comparadas, pruebas estadísticas (Wasserstein normalizada, Jensen-Shannon) y métricas de regresión del modelo en producción.
+* `reports/evidently/drift_report.json`: Resultados estructurados serializados en JSON para automatización de alertas.
+
+Resultados clave del reporte:
+* **Calidad de datos:** 100% de integridad (0.00% nulos, 0 filas vacías).
+* **Data Drift:** 5/13 variables con deriva significativa (38.5%). Deriva en variables de memoria histórica (`dep_lag_24h`, `dep_lag_168h`, `dep_mean_7d`, `dep_mean_28d`) y estacionalidad (`month`), explicada por la expansión de 371 a 469 estaciones en 2026.
+* **Desempeño en producción:** RMSE = 1.8879, MAE = 1.1924, $R^2$ = 0.3047, sesgo de sobrepredicción de +0.1494 viajes/hora.
+
+Consulta la memoria técnica completa de drift en [`docs/reporte_drift.md`](docs/reporte_drift.md).
+
 ### Validación de datasets
 
 Ejecuta la validación después de construir los datos procesados con `python -m mibici.features`.
