@@ -63,6 +63,7 @@ primer commit del repositorio.
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
 ├── docs/seguridad.md      <- Revisión de seguridad: hallazgos, correcciones y riesgos aceptados
 ├── docs/contenedor.md     <- Evidencia de construcción, ejecución y pruebas del contenedor de la API
+├── docs/version_alternativa.md <- Evidencia del reentrenamiento de P1 (challenger) y su registro en MLflow
 └── mibici/                <- Módulo del proyecto
     ├── config.py          <- Rutas, fechas, partición, semillas, umbrales y MLflow (único lugar)
     ├── dataset.py         <- Ingesta reproducible y manifiesto de datos
@@ -616,6 +617,13 @@ ev = load_ab_eval_frame()   # julio a septiembre de 2026, sin muestreo, con colu
 
 Si el challenger gana, la promoción se hace con el entry point `register` usando su `run_id` y el alias
 `champion`.
+
+**Resultados.** La ejecución del 2026-11-15 registró la versión 2 de `mibici-equipo24-p1-demanda` con el
+alias `@challenger` (corrida `p1-hgb-retrain-2026-06`), con `@champion` intacto en la versión 1. En el
+conjunto de evaluación A/B obtuvo un WAPE de 60.5% (57.7% en estaciones existentes y 99.9% en estaciones
+nuevas), contra 73.6% del baseline de la semana anterior. Las capturas del Model Registry y de la corrida,
+las métricas completas y las limitaciones de la ejecución están en
+[`docs/version_alternativa.md`](docs/version_alternativa.md).
 
 **Pruebas.** `tests/test_retrain.py` valida, sin servidor de MLflow ni datos, la conversión de los
 hiperparámetros leídos de MLflow, el rechazo de ventanas con fuga de información y el cálculo de las
