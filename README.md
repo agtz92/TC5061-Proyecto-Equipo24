@@ -71,6 +71,7 @@ primer commit del repositorio.
     ├── modeling/train.py  <- CLI de entrenamiento (entry point `train` de MLproject)
     ├── modeling/tracking.py <- Registro en MLflow: tags, parámetros, figuras y modelo
     ├── modeling/p1_demand.py, p2_risk.py, p3_clusters.py <- Modelos y evaluación por pregunta
+    ├── modeling/p1_retrain.py <- Versión alternativa de P1 (challenger) y conjunto de evaluación A/B
     ├── api/main.py, api/schemas.py <- API REST (FastAPI) del modelo P1 y sus esquemas Pydantic
     ├── modeling/predict.py<- Predicción batch (siguiente entrega)
     └── plots.py           <- Gráficas compartidas (siguiente entrega)
@@ -177,6 +178,7 @@ mlflow run . -e baselines --env-manager local
 | `search` | Búsqueda de hiperparámetros con nested runs (`SEARCH_GRIDS` en `config.py`) | `question`, `sample_rows` |
 | `baselines` | Los tres baselines de la propuesta | |
 | `register` | Registra un run en el Model Registry con nombre canónico y linaje completo | `question`, `run_id`, `alias` (por defecto `champion`) |
+| `retrain` | Versión alternativa de P1: reentrena el champion con datos recientes y la registra como `challenger` | `train_end`, `sample_rows`, `alias` |
 
 Todo parámetro que no se indique vale `config` y se toma de `mibici/config.py` (`START_MONTH`, `END_MONTH`,
 `DEFAULT_MODEL`, `HYPERPARAMS`, `TRAIN_SAMPLE_ROWS`, `SEED`). Así `MLproject` no repite rutas, fechas ni
@@ -516,6 +518,112 @@ Resultados clave del reporte:
 * **Desempeño en producción:** RMSE = 1.8879, MAE = 1.1924, $R^2$ = 0.3047, sesgo de sobrepredicción de +0.1494 viajes/hora.
 
 Consulta la memoria técnica completa de drift en [`docs/reporte_drift.md`](docs/reporte_drift.md).
+
+#### Versión alternativa del modelo P1 (challenger)
+
+Esta sección corresponde al punto 4 de la entrega de monitoreo: generar una segunda versión del modelo
+de demanda y registrarla en el Model Registry como una versión nueva del mismo modelo, para compararla
+después contra la versión vigente en el A/B testing.
+
+**Motivación.** La [interpretación del drift](docs/interpretacion_drift.md) concluyó que el drift de las
+variables de demanda tiene dos causas: la expansión de la red (de 371 a 469 estaciones) y una caída real
+de la demanda en las estaciones existentes. El modelo vigente absorbe el cambio de nivel gracias a sus
+variables de rezago (sesgo cercano a cero), pero su error en las estaciones nuevas es de 101% de WAPE,
+porque esas estaciones no existían en su periodo de entrenamiento. La hipótesis que se prueba es que
+**reentrenar con datos recientes reduce el error en las estaciones nuevas sin empeorar el de las
+existentes**.
+
+**Diseño: se modifica un solo factor.** La versión alternativa (challenger) es un reentrenamiento del
+champion en el que solo cambia la ventana de entrenamiento. Todo lo demás se lee de la corrida del
+champion en MLflow, de modo que cualquier diferencia en el A/B testing se pueda atribuir a los datos
+recientes y no a otra decisión de modelado.
+
+| Aspecto | Champion (versión vigente) | Challenger (versión alternativa) |
+|---|---|---|
+| Alias en el registry | `@champion` (no se modifica) | `@challenger` |
+| Ventana de entrenamiento | 2022-01-01 a 2025-06-30 | **2022-01-01 a 2026-06-30** |
+| Datos nuevos que incorpora | Ninguno | 2025-H2 (antes validación) y 2026-01 a 2026-06 (primer semestre del periodo actual) |
+| Estimador | El del champion (HGB, pérdida Poisson) | El mismo, leído de la etiqueta `model` de su corrida |
+| Hiperparámetros | Elegidos en la Parte B con la validación 2025-H2 | Los mismos, leídos de los parámetros `hp_*` de su corrida |
+| Variables de entrada | `P1_FEATURES` | `P1_FEATURES` (sin cambios) |
+| Tamaño de la muestra | `train_sample_rows` del champion | El mismo (se puede cambiar con `sample_rows`) |
+| Semilla | `SEED` | `SEED` |
+
+**Partición del periodo actual.** El periodo actual de monitoreo (2026-01 a 2026-09) se divide en dos partes
+para que el challenger pueda aprender de él sin contaminar la comparación:
+
+| Ventana | Uso | Constante en `config.py` |
+|---|---|---|
+| 2026-01-01 a 2026-06-30 | Se agrega al entrenamiento del challenger | `RETRAIN_TRAIN_END` |
+| 2026-07-01 a 2026-09-30 | Conjunto de evaluación del A/B testing; ninguna versión lo usa para entrenar ni para elegir hiperparámetros | `AB_EVAL_START`, `AB_EVAL_END` |
+
+La función `validate_windows` detiene la corrida si el challenger no agrega datos posteriores al champion o
+si su entrenamiento se traslapa con el conjunto de evaluación. Las variables de rezago de julio usan datos
+de junio, lo cual no es fuga de información: en producción también se conocen a las 00:00 del día anterior.
+
+**Ejecución.** Requiere que exista la versión `@champion` en el registry y que el servidor de MLflow esté
+disponible en `MLFLOW_TRACKING_URI`.
+
+```bash
+# Con el MLflow Project
+mlflow run . -e retrain --env-manager local
+
+# O directamente como módulo
+python -m mibici.modeling.train retrain
+
+# Opcional: otra ventana o tamaño de muestra
+python -m mibici.modeling.train retrain --train-end "2026-05-31 23:00" --sample-rows 3000000
+```
+
+**Qué registra la corrida** (`p1-hgb-retrain-2026-06`, etiqueta `stage=reentrenamiento`,
+`stage_of_work=challenger`):
+
+- Parámetros: los mismos de cualquier corrida de `train`, con `train_end`, `test_start` y `test_end`
+  ajustados a las ventanas reales, `val_start` y `val_end` como `no_aplica` (no hay selección de
+  hiperparámetros), y `champion_version`, `champion_run_id`, `champion_train_end` y `retrain_strategy`
+  para ligar la corrida con la versión que reentrena.
+- Métricas de entrenamiento: `train_rows`, `train_rows_after_champion` y `train_share_after_champion`
+  (cuánta de la muestra proviene de fechas que el champion no vio) y `train_stations`.
+- Métricas en el conjunto de evaluación A/B, con prefijo `ab_eval_`: `mae`, `rmse`, `wape`,
+  `poisson_deviance`, `bias` (predicción menos real), `wape_baseline` (regla de la semana anterior) y, por
+  segmento, `wape_existentes`, `wape_nuevas`, `bias_existentes`, `bias_nuevas` y el número de filas de
+  cada uno. Una estación es "nueva" si no tiene horas utilizables en el periodo de entrenamiento del
+  champion, el mismo criterio de la interpretación del drift.
+- Artefactos: `model/` con firma y ejemplo de entrada, `config/retrain_spec.json` con la especificación
+  completa del reentrenamiento, la importancia de variables y la gráfica real contra predicho.
+
+**Registro en el Model Registry.** La corrida registra el artefacto `model/` como una **versión nueva de
+`mibici-equipo24-p1-demanda`** (no como un modelo distinto) y le asigna el alias `challenger`. Además del
+linaje habitual (`source_run_id`, `git_commit`, `data_version`, etc.), la versión lleva las etiquetas
+`role=challenger`, `retrain_of_version`, `train_window` y `ab_eval_window`, y su descripción indica de qué
+versión es reentrenamiento. El alias `@champion` sigue apuntando a la versión anterior, así que la API no
+cambia de modelo hasta que el A/B testing justifique la promoción. Para cargar cada versión:
+
+```python
+import mlflow
+champion = mlflow.pyfunc.load_model("models:/mibici-equipo24-p1-demanda@champion")
+challenger = mlflow.pyfunc.load_model("models:/mibici-equipo24-p1-demanda@challenger")
+```
+
+**Conexión con el A/B testing (punto 5).** `mibici.modeling.p1_retrain` expone las dos funciones que la
+comparación debe reutilizar para evaluar ambas versiones sobre exactamente las mismas filas y con las
+mismas métricas:
+
+```python
+from mibici.modeling.p1_retrain import load_ab_eval_frame, evaluate
+ev = load_ab_eval_frame()   # julio a septiembre de 2026, sin muestreo, con columna `segmento`
+```
+
+Si el challenger gana, la promoción se hace con el entry point `register` usando su `run_id` y el alias
+`champion`.
+
+**Pruebas.** `tests/test_retrain.py` valida, sin servidor de MLflow ni datos, la conversión de los
+hiperparámetros leídos de MLflow, el rechazo de ventanas con fuga de información y el cálculo de las
+métricas por segmento:
+
+```bash
+python -m pytest tests/test_retrain.py
+```
 
 ### Validación de datasets
 

@@ -215,6 +215,22 @@ REGISTRY_DESCRIPTION = {
 }
 
 # --------------------------------------------------------------------------
+# Versión alternativa de P1 (monitoreo, punto 4): reentrenamiento con datos recientes
+# --------------------------------------------------------------------------
+# Alias del Model Registry. El champion es la versión vigente que sirve la API;
+# el challenger es la versión alternativa que compite contra él en el A/B testing.
+CHAMPION_ALIAS = "champion"
+CHALLENGER_ALIAS = "challenger"
+
+# El periodo actual de monitoreo (TEST_START a TEST_END) se divide en dos partes:
+#   - 2026-01 a 2026-06: se agrega al entrenamiento del challenger.
+#   - 2026-07 a 2026-09: se reserva como conjunto de evaluación del A/B testing.
+# Ninguna de las dos versiones usa el conjunto de evaluación para entrenar ni para
+# elegir hiperparámetros, así que la comparación entre ambas es justa.
+RETRAIN_TRAIN_END = "2026-06-30 23:00"
+AB_EVAL_START, AB_EVAL_END = "2026-07-01 00:00", "2026-09-30 23:00"
+
+# --------------------------------------------------------------------------
 # Reproducibilidad y MLflow
 # --------------------------------------------------------------------------
 SEED = 42
