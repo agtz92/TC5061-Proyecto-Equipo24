@@ -72,6 +72,8 @@ El preset `RegressionPreset` evaluó la capacidad predictiva del modelo champion
 
 ---
 
+> **Interpretación detallada:** el análisis por segmento (estaciones existentes contra nuevas), la causa del drift de `month` y el efecto en el error del modelo están en [`interpretacion_drift.md`](interpretacion_drift.md).
+
 ## 5. Diagnóstico de Causa Raíz y Recomendaciones MLOps
 
 1. **Causa del Data Drift en covariables de demanda:**

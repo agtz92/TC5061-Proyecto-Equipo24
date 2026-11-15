@@ -1,0 +1,165 @@
+{
+ "modelo": "models:/mibici-equipo24-p1-demanda@champion",
+ "umbral": 0.1,
+ "drift_por_variable": [
+  {
+   "variable": "hour",
+   "todas_las_estaciones": 0.0039,
+   "solo_existentes": 0.0036,
+   "existentes_vs_ref_ene_sep": 0.0045
+  },
+  {
+   "variable": "dow",
+   "todas_las_estaciones": 0.005,
+   "solo_existentes": 0.0039,
+   "existentes_vs_ref_ene_sep": 0.0041
+  },
+  {
+   "variable": "month",
+   "todas_las_estaciones": 0.2513,
+   "solo_existentes": 0.3168,
+   "existentes_vs_ref_ene_sep": 0.1151
+  },
+  {
+   "variable": "is_weekend",
+   "todas_las_estaciones": 0.0033,
+   "solo_existentes": 0.0026,
+   "existentes_vs_ref_ene_sep": 0.0018
+  },
+  {
+   "variable": "is_holiday",
+   "todas_las_estaciones": 0.0215,
+   "solo_existentes": 0.0185,
+   "existentes_vs_ref_ene_sep": 0.0071
+  },
+  {
+   "variable": "is_quincena",
+   "todas_las_estaciones": 0.0012,
+   "solo_existentes": 0.0001,
+   "existentes_vs_ref_ene_sep": 0.0004
+  },
+  {
+   "variable": "dep_lag_24h",
+   "todas_las_estaciones": 0.0992,
+   "solo_existentes": 0.0726,
+   "existentes_vs_ref_ene_sep": 0.0722
+  },
+  {
+   "variable": "dep_lag_168h",
+   "todas_las_estaciones": 0.1059,
+   "solo_existentes": 0.0789,
+   "existentes_vs_ref_ene_sep": 0.074
+  },
+  {
+   "variable": "dep_mean_7d",
+   "todas_las_estaciones": 0.1254,
+   "solo_existentes": 0.0924,
+   "existentes_vs_ref_ene_sep": 0.09
+  },
+  {
+   "variable": "dep_mean_28d",
+   "todas_las_estaciones": 0.1392,
+   "solo_existentes": 0.1046,
+   "existentes_vs_ref_ene_sep": 0.0975
+  },
+  {
+   "variable": "capacity",
+   "todas_las_estaciones": 0.0809,
+   "solo_existentes": 0.0435,
+   "existentes_vs_ref_ene_sep": 0.044
+  },
+  {
+   "variable": "lat",
+   "todas_las_estaciones": 0.0253,
+   "solo_existentes": 0.032,
+   "existentes_vs_ref_ene_sep": 0.0324
+  },
+  {
+   "variable": "lon",
+   "todas_las_estaciones": 0.0887,
+   "solo_existentes": 0.0577,
+   "existentes_vs_ref_ene_sep": 0.059
+  }
+ ],
+ "error_por_segmento": {
+  "referencia_2022_2025": {
+   "filas": 199673,
+   "estaciones": 371,
+   "demanda_media": 1.468,
+   "prediccion_media": 1.465,
+   "sesgo": -0.004,
+   "wape": 0.5419
+  },
+  "actual_todas": {
+   "filas": 198899,
+   "estaciones": 469,
+   "demanda_media": 1.228,
+   "prediccion_media": 1.225,
+   "sesgo": -0.003,
+   "wape": 0.6142
+  },
+  "actual_existentes": {
+   "filas": 182786,
+   "estaciones": 369,
+   "demanda_media": 1.299,
+   "prediccion_media": 1.295,
+   "sesgo": -0.004,
+   "wape": 0.6027
+  },
+  "actual_nuevas": {
+   "filas": 16113,
+   "estaciones": 100,
+   "demanda_media": 0.427,
+   "prediccion_media": 0.434,
+   "sesgo": 0.006,
+   "wape": 1.0111
+  }
+ },
+ "demanda_por_mes": [
+  {
+   "month": 1.0,
+   "referencia": 1.399999976158142,
+   "actual_existentes": 1.281000018119812
+  },
+  {
+   "month": 2.0,
+   "referencia": 1.4919999837875366,
+   "actual_existentes": 1.2920000553131104
+  },
+  {
+   "month": 3.0,
+   "referencia": 1.5130000114440918,
+   "actual_existentes": 1.3259999752044678
+  },
+  {
+   "month": 4.0,
+   "referencia": 1.437999963760376,
+   "actual_existentes": 1.2890000343322754
+  },
+  {
+   "month": 5.0,
+   "referencia": 1.496999979019165,
+   "actual_existentes": 1.0989999771118164
+  },
+  {
+   "month": 6.0,
+   "referencia": 1.437000036239624,
+   "actual_existentes": 1.2380000352859497
+  },
+  {
+   "month": 7.0,
+   "referencia": 1.3839999437332153,
+   "actual_existentes": 1.2760000228881836
+  },
+  {
+   "month": 8.0,
+   "referencia": 1.503999948501587,
+   "actual_existentes": 1.2660000324249268
+  },
+  {
+   "month": 9.0,
+   "referencia": 1.5460000038146973,
+   "actual_existentes": 1.6339999437332153
+  }
+ ]
+}
