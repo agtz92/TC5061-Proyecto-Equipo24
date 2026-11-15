@@ -45,6 +45,18 @@ entry_points:
   baselines:
     command: "python -m mibici.modeling.train baselines"
 
+  # Versión alternativa de P1 (challenger): reentrena el champion con datos recientes.
+  # "config" toma RETRAIN_TRAIN_END y CHALLENGER_ALIAS de config.py y el tamaño de
+  # muestra de la corrida del champion.
+  retrain:
+    parameters:
+      train_end: {type: string, default: "config"}
+      sample_rows: {type: string, default: "config"}
+      alias: {type: string, default: "config"}
+    command: >-
+      python -m mibici.modeling.train retrain
+      --train-end {train_end} --sample-rows {sample_rows} --alias {alias}
+
   # Registra un run en el Model Registry con nombre canónico y linaje completo.
   register:
     parameters:

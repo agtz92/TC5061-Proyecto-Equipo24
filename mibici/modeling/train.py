@@ -5,6 +5,7 @@ Se ejecuta desde el MLflow Project (punto de entrada `train`):
     mlflow run . -e train -P question=p1 -P model=rf -P n_estimators=300
     mlflow run . -e train -P question=p2 -P model=hgb -P learning_rate=0.05
     mlflow run . -e train -P question=p3 -P model=kmeans -P k=6
+    mlflow run . -e retrain                    # versión alternativa (challenger) de P1
 
 Cualquier parámetro que se deje en "config" toma su valor de mibici/config.py
 (DEFAULT_MODEL, HYPERPARAMS, TRAIN_SAMPLE_ROWS); así MLproject no repite valores.
@@ -28,16 +29,18 @@ import pandas as pd
 import typer
 
 from mibici.config import (
+    CHALLENGER_ALIAS,
     DEFAULT_MODEL,
     HYPERPARAMS,
     MODEL_CHOICES,
     PANEL_PARQUET,
     PROFILES_PARQUET,
+    RETRAIN_TRAIN_END,
     SEARCH_GRIDS,
     SELECTION_METRIC,
     TRAIN_SAMPLE_ROWS,
 )
-from mibici.modeling import p1_demand, p2_risk, p3_clusters
+from mibici.modeling import p1_demand, p1_retrain, p2_risk, p3_clusters
 from mibici.modeling.tracking import log_table, register_model_version, start_run
 
 app = typer.Typer(help="Entrenamiento de modelos MiBici (P1, P2, P3) con MLflow.")
@@ -149,6 +152,26 @@ def baselines():
     """Corre los baselines de las tres preguntas (experimento base de la propuesta)."""
     for q, m in [("p1", "baseline"), ("p2", "baseline"), ("p3", "municipio")]:
         train_one(q, m, HYPERPARAMS, TRAIN_SAMPLE_ROWS)
+
+
+@app.command()
+def retrain(
+    train_end: str = typer.Option(DEFAULT, help="Fin del entrenamiento del challenger (AAAA-MM-DD HH:MM)"),
+    sample_rows: str = typer.Option(DEFAULT, help="Filas de la muestra; 'config' usa las del champion"),
+    alias: str = typer.Option(DEFAULT, help="Alias de la nueva versión en el registry"),
+):
+    """Versión alternativa de P1: reentrena el champion con datos recientes y la registra como challenger.
+
+    Hereda estimador e hiperparámetros de la versión @champion; solo cambia la ventana de
+    entrenamiento (ver mibici/modeling/p1_retrain.py). El alias @champion no se modifica.
+    """
+    ensure_features()
+    result = p1_retrain.run(
+        train_end=resolve(train_end, RETRAIN_TRAIN_END, str),
+        sample_rows=resolve(sample_rows, None, int),
+        alias=resolve(alias, CHALLENGER_ALIAS, str),
+    )
+    typer.echo(f"Challenger: version={result['version']} (champion version={result['champion_version']})")
 
 
 @app.command()
