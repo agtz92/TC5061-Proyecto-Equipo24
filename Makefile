@@ -96,6 +96,11 @@ validate:
 	$(PYTHON_INTERPRETER) -m mibici.validation --question all
 
 ## Todo en un comando: pruebas, validacion de datos y chequeos de seguridad
+## A/B testing de P1: champion vs challenger (no mueve alias; usar PROMOTE=true para promover)
+.PHONY: ab-test
+ab-test:
+	$(PYTHON_INTERPRETER) -m mibici.modeling.train ab-test --promote $(or $(PROMOTE),false)
+
 .PHONY: check
 check: test validate security
 

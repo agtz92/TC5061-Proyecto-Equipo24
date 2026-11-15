@@ -174,6 +174,27 @@ def retrain(
     typer.echo(f"Challenger: version={result['version']} (champion version={result['champion_version']})")
 
 
+@app.command("ab-test")
+def ab_test(
+    promote: str = typer.Option("false", help="true: mover @champion al challenger si gana"),
+    n_boot: str = typer.Option(DEFAULT, help="Remuestreos bootstrap; 'config' usa AB_BOOTSTRAP_REPS"),
+):
+    """A/B testing de P1: compara @champion y @challenger sobre el mismo conjunto de evaluación.
+
+    Registra la corrida en MLflow, guarda reports/ab_test/p1_ab_test.json y actualiza
+    docs/justificacion_version_vigente.md. Sin --promote true no se mueve ningún alias.
+    """
+    from mibici.config import AB_BOOTSTRAP_REPS
+    from mibici.modeling import p1_ab_test
+
+    flag = promote.strip().lower()
+    if flag not in ("true", "false"):
+        raise typer.BadParameter("--promote acepta true o false")
+    ensure_features()
+    res = p1_ab_test.run(promote=flag == "true", n_boot=resolve(n_boot, AB_BOOTSTRAP_REPS, int))
+    typer.echo(f"Versión vigente: {res['decision']['vigente']} | {res['promocion']}")
+
+
 @app.command()
 def register(
     question: str = typer.Option(..., help="p1 | p2 | p3"),
