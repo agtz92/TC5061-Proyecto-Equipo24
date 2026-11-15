@@ -180,6 +180,7 @@ mlflow run . -e baselines --env-manager local
 | `baselines` | Los tres baselines de la propuesta | |
 | `register` | Registra un run en el Model Registry con nombre canónico y linaje completo | `question`, `run_id`, `alias` (por defecto `champion`) |
 | `retrain` | Versión alternativa de P1: reentrena el champion con datos recientes y la registra como `challenger` | `train_end`, `sample_rows`, `alias` |
+| `ab_test` | A/B testing de P1: compara `@champion` y `@challenger` en el mismo conjunto y documenta la versión vigente | `promote` (`false` por defecto), `n_boot` |
 
 Todo parámetro que no se indique vale `config` y se toma de `mibici/config.py` (`START_MONTH`, `END_MONTH`,
 `DEFAULT_MODEL`, `HYPERPARAMS`, `TRAIN_SAMPLE_ROWS`, `SEED`). Así `MLproject` no repite rutas, fechas ni
@@ -615,8 +616,12 @@ from mibici.modeling.p1_retrain import load_ab_eval_frame, evaluate
 ev = load_ab_eval_frame()   # julio a septiembre de 2026, sin muestreo, con columna `segmento`
 ```
 
-Si el challenger gana, la promoción se hace con el entry point `register` usando su `run_id` y el alias
-`champion`.
+**A/B testing y versión vigente.** `python -m mibici.modeling.train ab-test` (o `make ab-test`) evalúa
+ambas versiones sobre las mismas filas, calcula intervalos bootstrap por estación y por día, aplica los
+criterios fijados en `config.py` (`AB_*`) y escribe la decisión en
+[`docs/justificacion_version_vigente.md`](docs/justificacion_version_vigente.md). Si el challenger cumple
+todos los criterios, `--promote true` mueve `@champion` a su versión y deja la anterior en
+`@champion_anterior` para revertir; no se crean versiones nuevas.
 
 **Resultados.** La ejecución del 2026-11-15 registró la versión 2 de `mibici-equipo24-p1-demanda` con el
 alias `@challenger` (corrida `p1-hgb-retrain-2026-06`), con `@champion` intacto en la versión 1. En el

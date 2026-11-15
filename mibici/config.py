@@ -53,7 +53,10 @@ DATA_MANIFEST = PROJ_ROOT / "data_manifest.json"
 # Fuente de datos
 # --------------------------------------------------------------------------
 PORTAL_URL = "https://www.mibici.net/es/datos-abiertos/"
-NOMENCLATURA_FILE = "nomenclatura_2026_09.csv"
+# Nomenclatura con la que se versionaron los datos (data_manifest.json). El portal solo
+# publica la vigente; si la de septiembre ya no está, se puede usar otra con la variable
+# MIBICI_NOMENCLATURA en .env (p. ej. nomenclatura_2026_10.csv). Ver docs/version_alternativa.md.
+NOMENCLATURA_FILE = os.getenv("MIBICI_NOMENCLATURA", "nomenclatura_2026_09.csv")
 HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (TC5061 MLOps; proyecto academico MiBici)"}
 HTTP_TIMEOUT_S = 120
 
@@ -229,6 +232,19 @@ CHALLENGER_ALIAS = "challenger"
 # elegir hiperparámetros, así que la comparación entre ambas es justa.
 RETRAIN_TRAIN_END = "2026-06-30 23:00"
 AB_EVAL_START, AB_EVAL_END = "2026-07-01 00:00", "2026-09-30 23:00"
+
+# --------------------------------------------------------------------------
+# A/B testing champion vs challenger (monitoreo, punto 5)
+# --------------------------------------------------------------------------
+# Criterios fijados antes de ver los resultados. El challenger solo sustituye al
+# champion si cumple TODOS; ante empate o duda se conserva la versión vigente,
+# porque cambiar de modelo tiene costo (redespliegue, riesgo) y no hay beneficio.
+AB_MIN_MEJORA_WAPE = 0.005       # mejora mínima de WAPE total (0.5 puntos porcentuales)
+AB_TOLERANCIA_SEGMENTO = 0.005   # ningún segmento puede empeorar más de 0.5 pp de WAPE
+AB_TOLERANCIA_SESGO = 0.02       # |sesgo| no puede crecer más de 0.02 viajes/h
+AB_BOOTSTRAP_REPS = 2000         # remuestreos para los intervalos de confianza al 95%
+# Alias que conserva la versión desplazada al promover, para poder revertir.
+PREVIOUS_CHAMPION_ALIAS = "champion_anterior"
 
 # --------------------------------------------------------------------------
 # Reproducibilidad y MLflow
