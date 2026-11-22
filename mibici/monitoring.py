@@ -12,7 +12,6 @@ Ejemplos de uso:
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 
 from loguru import logger
 import mlflow

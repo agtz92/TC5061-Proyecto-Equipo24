@@ -9,11 +9,12 @@ sobrescribir con variables de entorno en el archivo .env (no versionado).
 import os
 from pathlib import Path
 
+# Asegurar UTF-8 en stdout/stderr para evitar UnicodeEncodeError con emojis en Windows
+import sys
+
 from dotenv import load_dotenv
 from loguru import logger
 
-# Asegurar UTF-8 en stdout/stderr para evitar UnicodeEncodeError con emojis en Windows
-import sys
 if sys.platform == "win32":
     try:
         if hasattr(sys.stdout, "reconfigure"):
@@ -188,9 +189,9 @@ SELECTION_METRIC = {
 # --------------------------------------------------------------------------
 # Nombre de cada modelo en el registry.  Uso: REGISTRY_NAME["p1"], etc.
 REGISTRY_NAME = {
-    "p1": f"mibici-equipo24-p1-demanda",
-    "p2": f"mibici-equipo24-p2-riesgo",
-    "p3": f"mibici-equipo24-p3-grupos",
+    "p1": "mibici-equipo24-p1-demanda",
+    "p2": "mibici-equipo24-p2-riesgo",
+    "p3": "mibici-equipo24-p3-grupos",
 }
 
 # Descripción que se escribe en el modelo al crearlo y al registrar cada versión.

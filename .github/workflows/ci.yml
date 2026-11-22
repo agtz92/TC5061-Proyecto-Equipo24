@@ -1,0 +1,82 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'feature/**'
+      - 'docs/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+
+# Cancela ejecuciones previas en la misma rama si hay nuevos commits
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Pruebas unitarias y de calidad
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar entorno Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Instalar dependencias del proyecto
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Verificación de estilo y calidad de código (Ruff)
+        run: |
+          ruff check .
+
+      - name: Verificaciones de seguridad y secretos
+        run: |
+          python security/run_checks.py --skip-audit
+
+      - name: Ejecutar suite de pruebas con Pytest
+        run: |
+          pytest -v
+
+  build:
+    name: Construcción y validación de la imagen del servicio
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Construir imagen de contenedor de la API
+        run: |
+          docker build \
+            -f Containerfile \
+            -t mibici-api:${{ github.sha }} \
+            -t mibici-api:latest .
+
+      - name: Prueba de humo del contenedor (Smoke test en imagen construida)
+        run: |
+          docker run --rm mibici-api:latest python -c "
+          import fastapi, uvicorn, mlflow, sklearn, pandas, numpy, pyarrow
+          print('✓ Dependencias y entorno de ejecución validados en el contenedor')
+          "
+          docker run --rm mibici-api:latest python -c "
+          import mibici.api.main as api
+          print('✓ Módulo de la API FastAPI y esquemas validados')
+          "
+
