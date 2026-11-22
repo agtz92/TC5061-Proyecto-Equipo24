@@ -9,15 +9,15 @@ Uso:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
-import pandas as pd
 import evidently
 from evidently import Report
 from evidently.core.datasets import DataDefinition, Dataset, Regression
 from evidently.presets import DataDriftPreset, DataSummaryPreset, RegressionPreset
+import pandas as pd
 
 print(
     f"Python {sys.version_info.major}.{sys.version_info.minor} | "
