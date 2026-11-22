@@ -820,6 +820,24 @@ autenticación, `MLFLOW_TRACKING_USERNAME` y `MLFLOW_TRACKING_PASSWORD` van solo
 
 ![Pruebas de seguridad con PyTest](docs/img/seguridad_pytest.png)
 
+### Pipeline de CI/CD (GitHub Actions)
+
+El repositorio cuenta con un pipeline de integración continua automatizado mediante **GitHub Actions** en [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+Ante cada `push` o `pull_request` hacia la rama principal o ramas de trabajo:
+
+1. **Job `test` (Pruebas y calidad):**
+   * Configura el entorno en Python 3.12 con caché de dependencias.
+   * Ejecuta verificación de estilo y linter con `ruff check .`.
+   * Ejecuta chequeos de higiene, exclusión de secretos y seguridad con `python security/run_checks.py --skip-audit`.
+   * Corre la suite completa de pruebas unitarias y de integración con `pytest -v`.
+2. **Job `build` (Construcción del contenedor, condicionado al éxito de `test`):**
+   * Configura Docker Buildx.
+   * Construye la imagen de la API del servicio (`mibici-api:latest` y `mibici-api:<sha>`) usando el [`Containerfile`](Containerfile).
+   * Realiza una prueba de humo (*smoke test*) dentro del contenedor verificando que el entorno y los módulos de FastAPI se importen correctamente.
+
+Consulta la arquitectura y detalles técnicos en [`docs/ci_cd.md`](docs/ci_cd.md).
+
 ## Buenas prácticas y dónde se aplican
 
 | Práctica | Cómo se aplica |
