@@ -1,0 +1,86 @@
+# Sistema completo de MiBici (P1): servidor de MLflow + API del modelo.
+#
+#   docker compose up -d --build        (o: podman-compose up -d --build)
+#
+# - mlflow: Tracking server y Model Registry. Usa el mlflow.db y mlartifacts/ de la carpeta
+#   indicada en MLFLOW_STORE (por defecto, la raíz del repo, donde ya los tiene cada integrante).
+# - api: imagen del Containerfile. Carga models:/mibici-equipo24-p1-demanda@champion
+#   desde el servicio mlflow por la red interna, no desde el anfitrión.
+# - api-challenger (opcional, perfil "ab"): la misma imagen sirviendo el alias @challenger.
+#     docker compose --profile ab up -d
+#
+# Los puertos se publican solo en 127.0.0.1: el sistema no queda expuesto a la red.
+
+name: mibici
+
+x-api: &api
+  build:
+    context: .
+    dockerfile: Containerfile
+  image: mibici-api:1.0.0
+  environment: &api-env
+    MLFLOW_TRACKING_URI: http://mlflow:5001
+    MODEL_ALIAS: champion
+  depends_on:
+    mlflow:
+      condition: service_healthy
+  networks: [mibici]
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+    interval: 15s
+    timeout: 5s
+    retries: 3
+    start_period: 60s
+  deploy:
+    resources:
+      limits:
+        cpus: "${API_CPUS:-1.0}"
+        memory: ${API_MEMORY:-1g}
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.22.0
+    container_name: mibici-mlflow
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri=sqlite:////store/mlflow.db
+      - --artifacts-destination=/store/mlartifacts
+      - --serve-artifacts
+      # Dentro del contenedor escucha en todas las interfaces para que la API lo alcance
+      # por la red interna; hacia el anfitrión solo se publica en 127.0.0.1.
+      - --host=0.0.0.0
+      - --port=5001
+    volumes:
+      - ${MLFLOW_STORE:-.}:/store
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5001}:5001"
+    networks: [mibici]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  api:
+    <<: *api
+    container_name: mibici-api
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+
+  api-challenger:
+    <<: *api
+    container_name: mibici-api-challenger
+    profiles: [ab]
+    environment:
+      <<: *api-env
+      MODEL_ALIAS: challenger
+    ports:
+      - "127.0.0.1:${API_CHALLENGER_PORT:-8001}:8000"
+
+networks:
+  mibici:
+    name: mibici-net

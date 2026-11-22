@@ -48,6 +48,7 @@ primer commit del repositorio.
 ├── requirements-api.txt   <- Dependencias de ejecución de la API (las que instala la imagen)
 ├── Containerfile          <- Imagen OCI de la API (formato Dockerfile; Podman y Docker)
 ├── .dockerignore          <- Archivos que no entran al contexto de construcción de la imagen
+├── docker-compose.yml     <- Sistema completo: servidor de MLflow + API, con un solo comando
 ├── data/                  <- Ignorado por Git
 │   ├── raw/               <- CSV originales descargados del portal
 │   ├── interim/           <- Parquet por mes, ya normalizado y sin datos personales
@@ -351,7 +352,7 @@ estándar OCI. Usa el formato Dockerfile, así que sirve tanto con Podman como c
 | Dependencias | `requirements-api.txt`: solo lo necesario para servir el modelo (FastAPI, Uvicorn, MLflow, scikit-learn, pandas, numpy, python-dotenv, loguru), con las mismas versiones fijas que `requirements.txt`. Se instalan en una capa propia, que se reutiliza mientras no cambien |
 | Código | Solo el paquete `mibici/`. `.dockerignore` deja fuera `.env`, `.venv`, `data/`, `models/`, `mlflow.db`, pruebas, reportes y notebooks |
 | Seguridad | Se ejecuta con un usuario sin privilegios (`appuser`, uid 10001) y sin credenciales dentro de la imagen |
-| Arranque | `uvicorn mibici.api.main:app --host 0.0.0.0 --port 8000` (puerto 8000 expuesto) |
+| Arranque | Uvicorn con `mibici.api.main:app` en el puerto 8000, escuchando en todas las interfaces del contenedor (ver el `CMD` del `Containerfile`) |
 | Variables | `MLFLOW_TRACKING_URI=http://host.containers.internal:5001` y `MODEL_ALIAS=champion` por defecto. Se pueden cambiar con `-e` al ejecutar, igual que `MODEL_URI` |
 
 El modelo **no** se copia a la imagen. Al arrancar, el contenedor lo recupera del Model Registry, así que la
@@ -380,7 +381,8 @@ docker run --rm -p 8000:8000 --name mibici-api \
 ```
 
 En Linux con Docker, agrega `--add-host=host.docker.internal:host-gateway`. Si el contenedor no alcanza el
-servidor, levanta MLflow con `--host 0.0.0.0` en lugar de `127.0.0.1`.
+servidor del anfitrión, usa [Docker Compose](#sistema-completo-con-docker-compose), que levanta MLflow y la
+API en la misma red interna sin exponer MLflow fuera de `127.0.0.1`.
 
 **Alternativa sin servidor de MLflow:** descarga el modelo del registry y móntalo como volumen de solo
 lectura:
@@ -472,6 +474,62 @@ Si lo ejecutas en segundo plano (`-d`, sin `--rm`), consulta el error con `podma
 
 El `Containerfile` no declara `HEALTHCHECK` porque el formato de imagen OCI no lo admite (Podman lo
 ignora). Para monitorear el servicio, consulta `GET /health`.
+
+### Sistema completo con Docker Compose
+
+`docker-compose.yml` levanta el servidor de MLflow y la API juntos, con un solo comando:
+
+```bash
+docker compose up -d --build
+```
+
+Con Podman: `podman-compose up -d --build`. Para detenerlo: `docker compose down`.
+
+| Servicio | Imagen | Puerto en el anfitrión | Qué hace |
+|---|---|---|---|
+| `mlflow` | `ghcr.io/mlflow/mlflow:v2.22.0` (misma versión que el proyecto) | `127.0.0.1:5001` | Tracking server y Model Registry. Usa el `mlflow.db` y `mlartifacts/` de la carpeta montada |
+| `api` | `mibici-api:1.0.0`, construida desde el `Containerfile` | `127.0.0.1:8000` | Sirve `models:/mibici-equipo24-p1-demanda@champion`, que descarga del servicio `mlflow` |
+| `api-challenger` (opcional) | La misma imagen | `127.0.0.1:8001` | Sirve el alias `@challenger`. Solo arranca con `docker compose --profile ab up -d` |
+
+Configuración del compose:
+
+- **Red interna `mibici-net`.** La API llega a MLflow por nombre (`http://mlflow:5001`), no por el anfitrión.
+  Por eso ya no hacen falta `host.docker.internal` ni `host.containers.internal`.
+- **Orden de arranque con healthchecks.** La API espera a que `mlflow` responda en `/health` antes de
+  arrancar (`depends_on: condition: service_healthy`). Docker marca la API como `healthy` cuando su propio
+  `/health` responde, es decir, cuando el modelo ya está cargado. Ambos servicios se reinician solos si fallan
+  (`restart: unless-stopped`).
+- **Volumen con el estado de MLflow.** Se monta la carpeta de `MLFLOW_STORE` (por defecto, la raíz del repo,
+  donde cada integrante ya tiene su `mlflow.db` y `mlartifacts/`). Así se usan los mismos experimentos y
+  modelos registrados que con el servidor local, y nada de eso entra a la imagen ni a Git.
+- **Límites de recursos.** La API corre con 1 CPU y 1 GB de memoria (`API_CPUS`, `API_MEMORY`), para que
+  las pruebas de carga y el costo por inferencia se midan sobre un tamaño de máquina conocido.
+- **Solo localhost.** Los puertos se publican en `127.0.0.1`. Dentro de la red interna, MLflow escucha en
+  todas las interfaces para que la API lo alcance, pero no queda expuesto a la red del anfitrión.
+
+**Variables** (opcionales, en `.env` o en la terminal):
+
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `MLFLOW_STORE` | `.` | Carpeta con `mlflow.db` y `mlartifacts/` |
+| `MLFLOW_PORT`, `API_PORT`, `API_CHALLENGER_PORT` | `5001`, `8000`, `8001` | Puertos en el anfitrión |
+| `API_CPUS`, `API_MEMORY` | `1.0`, `1g` | Límites de la API |
+
+**Requisito:** el `mlflow.db` montado debe tener el modelo P1 con el alias `@champion`. Si es un clon nuevo,
+primero entrena y registra el modelo (ver [Modelo elegido y registro en el Model Registry](#modelo-elegido-y-registro-en-el-model-registry)),
+o copia el `mlflow.db` y `mlartifacts/` de otro integrante a la raíz del repo. Si ya tienes un servidor
+local de MLflow en el puerto 5001, detenlo antes o cambia `MLFLOW_PORT`.
+
+**Verificar:**
+
+```bash
+docker compose ps                      # mlflow y api en estado "healthy"
+curl http://localhost:8000/health      # {"estado":"ok", ..., "version":"1", "uri":"models:/...@champion"}
+docker compose logs -f api             # logs de la API
+```
+
+La UI de MLflow queda en `http://localhost:5001` y la documentación de la API en `http://localhost:8000/docs`.
+Las peticiones de prueba de la sección anterior funcionan igual.
 
 ### Sin MLflow Project
 
