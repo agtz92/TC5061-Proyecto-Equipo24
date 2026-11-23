@@ -1,0 +1,10 @@
+tarifa,escenario,rps,usd_hora,usd_mes_24x7,usd_por_millon_peticiones,usd_por_millon_predicciones
+Fargate x86 bajo demanda,Escalón más bajo (10 usuarios),9.6,0.04937,36.04,1.435,0.35
+Fargate x86 bajo demanda,Capacidad con p95 ≤ 500 ms (estimada),19.7,0.04937,36.04,0.695,0.17
+Fargate x86 bajo demanda,Máximo medido (saturada),29.5,0.04937,36.04,0.465,0.113
+Fargate ARM (Graviton) bajo demanda,Escalón más bajo (10 usuarios),9.6,0.0395,28.84,1.148,0.28
+Fargate ARM (Graviton) bajo demanda,Capacidad con p95 ≤ 500 ms (estimada),19.7,0.0395,28.84,0.556,0.136
+Fargate ARM (Graviton) bajo demanda,Máximo medido (saturada),29.5,0.0395,28.84,0.372,0.091
+Fargate Spot x86,Escalón más bajo (10 usuarios),9.6,0.01517,11.08,0.441,0.108
+Fargate Spot x86,Capacidad con p95 ≤ 500 ms (estimada),19.7,0.01517,11.08,0.214,0.052
+Fargate Spot x86,Máximo medido (saturada),29.5,0.01517,11.08,0.143,0.035
