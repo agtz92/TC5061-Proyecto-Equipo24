@@ -50,7 +50,8 @@ primer commit del repositorio.
 ├── Containerfile          <- Imagen OCI de la API (formato Dockerfile; Podman y Docker)
 ├── .dockerignore          <- Archivos que no entran al contexto de construcción de la imagen
 ├── docker-compose.yml     <- Sistema completo: servidor de MLflow + API, con un solo comando
-├── loadtest/              <- Prueba de carga: locustfile.py (escenario) y generar_reporte.py (gráficas)
+├── loadtest/              <- Prueba de carga: locustfile.py (escenario), monitor_recursos.py (docker stats)
+│                             y generar_reporte.py (gráficas, recursos y FinOps)
 ├── data/                  <- Ignorado por Git
 │   ├── raw/               <- CSV originales descargados del portal
 │   ├── interim/           <- Parquet por mes, ya normalizado y sin datos personales
@@ -61,7 +62,7 @@ primer commit del repositorio.
 ├── reports/              <- Figuras y reportes HTML de validación
 │   ├── figures/           <- Figuras de los modelos
 │   ├── deepchecks/        <- Reportes HTML (se generan al validar datasets)
-│   ├── carga/             <- Resultados de Locust, gráficas y reporte_carga.md
+│   ├── carga/             <- Resultados de Locust, consumo de recursos, FinOps y reporte_carga.md
 │   └── security/          <- Salidas de bandit, pip-audit y pruebas de seguridad (evidencia)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
@@ -78,6 +79,7 @@ primer commit del repositorio.
     ├── modeling/p1_demand.py, p2_risk.py, p3_clusters.py <- Modelos y evaluación por pregunta
     ├── modeling/p1_retrain.py <- Versión alternativa de P1 (challenger) y conjunto de evaluación A/B
     ├── api/main.py, api/schemas.py <- API REST (FastAPI) del modelo P1 y sus esquemas Pydantic
+    ├── finops.py          <- Consumo de recursos por escalón y costo por inferencia (reporte de carga)
     ├── modeling/predict.py<- Predicción batch (siguiente entrega)
     └── plots.py           <- Gráficas compartidas (siguiente entrega)
 ```
@@ -561,10 +563,13 @@ o aparecen errores, y cuál es el throughput que la API sostiene; ese dato es el
 pip install -r requirements-carga.txt
 docker compose up -d --build                   # MLflow + API (ver la sección anterior)
 
+# En otra terminal, antes de Locust: CPU y memoria de los contenedores cada ~5 s
+python loadtest/monitor_recursos.py --duracion 320      # --motor podman con Podman
+
 # Prueba sin interfaz: escribe los CSV y el reporte HTML de Locust en reports/carga/
 locust -f loadtest/locustfile.py --host http://localhost:8000 --headless     --csv reports/carga/locust --csv-full-history --html reports/carga/locust.html
 
-# Gráficas y reporte en Markdown a partir de esos CSV
+# Gráficas y reporte en Markdown (carga, recursos y FinOps) a partir de esos CSV
 python loadtest/generar_reporte.py
 ```
 
@@ -592,9 +597,39 @@ Ejemplo de carga constante: `CARGA_ESCENARIO=constante locust -f loadtest/locust
 | `capacidad_por_etapa.png` | Throughput y p95 según el número de usuarios |
 | `resumen_etapas.csv` | Métricas por escalón, para el análisis FinOps |
 | `locust.html` | Reporte interactivo de Locust (lo genera Locust, no el script) |
+| `docker_stats.csv` | Muestras de CPU y memoria por contenedor (las escribe `monitor_recursos.py`) |
+| `recursos_tiempo.png` | CPU y memoria de la API y de MLflow durante la prueba, con los escalones marcados |
+| `recursos_por_etapa.png`, `recursos_por_etapa.csv` | CPU promedio y ms de CPU por petición en cada escalón |
+| `costos_inferencia.png`, `costos_inferencia.csv` | Costo por millón de peticiones y de predicciones por escenario y tarifa |
+| `costo_por_trafico.csv` | Costo mensual y por inferencia según el tráfico promedio |
 
-Mientras corre la prueba, `docker stats mibici-api mibici-mlflow` (o `podman stats`) muestra el consumo de CPU
-y memoria de los contenedores.
+Si no existe `docker_stats.csv`, el reporte se genera igual pero sin las secciones de recursos y FinOps.
+
+### Monitoreo de recursos y análisis FinOps
+
+[`loadtest/monitor_recursos.py`](loadtest/monitor_recursos.py) toma `docker stats` (o `podman stats`) de
+`mibici-api` y `mibici-mlflow` cada ~5 s mientras corre Locust. [`mibici/finops.py`](mibici/finops.py) cruza esas
+muestras con los escalones de usuarios y calcula el costo por inferencia con el precio de referencia de AWS
+Fargate (Linux, US East, x86 y ARM bajo demanda y Spot; precios fijos en el código con su fuente y fecha). Las
+dos secciones quedan en el mismo [`reporte_carga.md`](reports/carga/reporte_carga.md), junto a los resultados
+de la prueba de carga.
+
+Resultados de la prueba del 22 de noviembre de 2026 (API limitada a 1 CPU y 1 GB):
+
+| Hallazgo | Dato |
+|---|---|
+| Cuello de botella | CPU: 16% con 10 usuarios, 55% con 25 y 91-96% desde 50; el throughput se estanca en 23-30 pet/s |
+| Memoria | 202-226 MiB de 1 GiB (22%); no crece con la carga |
+| CPU por petición | 16.6 ms con poca carga; hasta 38.8 ms con la API saturada |
+| Capacidad con p95 ≤ 500 ms | ~20 pet/s por tarea (estimada entre los escalones de 10 y 25 usuarios) |
+| Costo de una tarea (1 vCPU / 2 GB, Fargate x86) | $36.04 USD/mes encendida 24x7 |
+| Costo por inferencia a esa capacidad | $0.69 USD por millón de peticiones; $0.17 USD por millón de predicciones (4.1 predicciones por petición en la mezcla de la prueba) |
+| Con poco tráfico (2 pet/s promedio) | $6.86 USD por millón de peticiones: se paga la tarea aunque esté ociosa |
+
+Las optimizaciones con más efecto son pedir predicciones en lote o precalcularlas cada hora con caché, pasar a
+ARM (~20% menos), usar Spot solo para réplicas adicionales o el challenger (~69% menos), ajustar la tarea a la
+memoria que de verdad usa y sacar MLflow del camino de la inferencia empaquetando el modelo en la imagen. La
+discusión completa está en el reporte.
 
 ### Sin MLflow Project
 
@@ -900,6 +935,19 @@ Ante cada `push` o `pull_request` hacia la rama principal o ramas de trabajo:
    * Configura Docker Buildx.
    * Construye la imagen de la API del servicio (`mibici-api:latest` y `mibici-api:<sha>`) usando el [`Containerfile`](Containerfile).
    * Realiza una prueba de humo (*smoke test*) dentro del contenedor verificando que el entorno y los módulos de FastAPI se importen correctamente.
+
+Para correr localmente lo mismo que el pipeline antes de abrir un PR:
+
+```bash
+pip install -r requirements.txt && pip install -e .
+ruff check .
+python security/run_checks.py --skip-audit
+pytest -v
+docker build -f Containerfile -t mibici-api:local .      # o: podman build
+```
+
+El estado de cada ejecución aparece en la pestaña **Actions** del repositorio y como check en cada Pull
+Request.
 
 Consulta la arquitectura y detalles técnicos en [`docs/ci_cd.md`](docs/ci_cd.md).
 

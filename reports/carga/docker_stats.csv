@@ -1,3 +1,4 @@
+timestamp,contenedor,cpu,memoria
 1795395265,mibici-api,0.19%,202.2MiB / 1GiB
 1795395265,mibici-mlflow,0.02%,668.7MiB / 17.45GiB
 1795395271,mibici-api,20.07%,203.4MiB / 1GiB

@@ -14,9 +14,15 @@ y escribe en la carpeta de salida:
     resumen_etapas.csv          métricas por escalón (insumo del análisis FinOps)
     reporte_carga.md            tablas, gráficas y observaciones
 
+Si existe el CSV de recursos (loadtest/monitor_recursos.py, por defecto
+reports/carga/docker_stats.csv), el reporte agrega el consumo de CPU y memoria y el análisis
+FinOps (mibici/finops.py), con recursos_tiempo.png, recursos_por_etapa.png/.csv,
+costos_inferencia.png/.csv y costo_por_trafico.csv.
+
 Uso:
     python loadtest/generar_reporte.py                       # reports/carga/locust_*.csv
     python loadtest/generar_reporte.py --prefijo ruta/locust --salida ruta/
+    python loadtest/generar_reporte.py --recursos ruta/docker_stats.csv
 """
 
 from __future__ import annotations
@@ -212,6 +218,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--prefijo", default="reports/carga/locust", help="Prefijo de los CSV de Locust")
     p.add_argument("--salida", default="reports/carga", help="Carpeta del reporte")
+    p.add_argument("--recursos", default="reports/carga/docker_stats.csv",
+                   help="CSV de docker/podman stats para las secciones de recursos y FinOps")
     args = p.parse_args()
 
     salida = Path(args.salida)
@@ -248,7 +256,7 @@ def main() -> None:
     por_endpoint["Endpoint"] = por_endpoint["Endpoint"].replace({"Aggregated": "**Total**"})
     duracion = hist["t"].max()
     md = [
-        "# Reporte de la prueba de carga · API de demanda (P1)",
+        "# Reporte de la prueba de carga y análisis FinOps · API de demanda (P1)",
         "",
         f"Generado el {datetime.now():%Y-%m-%d %H:%M} con `loadtest/generar_reporte.py` "
         f"a partir de `{args.prefijo}_*.csv`.",
@@ -297,6 +305,13 @@ def main() -> None:
     ]
     if not et.empty:
         md += ["![Capacidad por escalón](capacidad_por_etapa.png)", ""]
+    recursos = Path(args.recursos)
+    if recursos.exists() and not et.empty:
+        from mibici import finops  # import tardío: solo hace falta con el CSV de recursos
+
+        md += finops.generar(recursos, stats, hist, et, salida)
+    else:
+        print(f"Sin {recursos}: el reporte no incluye recursos ni FinOps")
     md += ["## Fallas", ""]
     if fallas.empty:
         md.append("No se registraron fallas.")
