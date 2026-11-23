@@ -46,9 +46,11 @@ primer commit del repositorio.
 ├── data_manifest.json     <- Versión de los datos (se genera con la ingesta; sí se versiona)
 ├── requirements.txt       <- Dependencias con versión fija
 ├── requirements-api.txt   <- Dependencias de ejecución de la API (las que instala la imagen)
+├── requirements-carga.txt <- Locust, solo para las pruebas de carga
 ├── Containerfile          <- Imagen OCI de la API (formato Dockerfile; Podman y Docker)
 ├── .dockerignore          <- Archivos que no entran al contexto de construcción de la imagen
 ├── docker-compose.yml     <- Sistema completo: servidor de MLflow + API, con un solo comando
+├── loadtest/              <- Prueba de carga: locustfile.py (escenario) y generar_reporte.py (gráficas)
 ├── data/                  <- Ignorado por Git
 │   ├── raw/               <- CSV originales descargados del portal
 │   ├── interim/           <- Parquet por mes, ya normalizado y sin datos personales
@@ -59,6 +61,7 @@ primer commit del repositorio.
 ├── reports/              <- Figuras y reportes HTML de validación
 │   ├── figures/           <- Figuras de los modelos
 │   ├── deepchecks/        <- Reportes HTML (se generan al validar datasets)
+│   ├── carga/             <- Resultados de Locust, gráficas y reporte_carga.md
 │   └── security/          <- Salidas de bandit, pip-audit y pruebas de seguridad (evidencia)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
@@ -530,6 +533,68 @@ docker compose logs -f api             # logs de la API
 
 La UI de MLflow queda en `http://localhost:5001` y la documentación de la API en `http://localhost:8000/docs`.
 Las peticiones de prueba de la sección anterior funcionan igual.
+
+### Pruebas de carga con Locust
+
+[`loadtest/locustfile.py`](loadtest/locustfile.py) simula a muchos usuarios de una app o tablero que piden
+pronósticos de demanda a la API levantada con Docker Compose. Cada usuario virtual espera entre 0.5 y 1.5 s
+entre acciones y repite esta mezcla de tareas:
+
+| Tarea | Peso | Qué simula |
+|---|---|---|
+| `POST /predict` | 10 | Consulta de una estación en una hora: el caso principal |
+| `POST /predict/lote` | 2 | Pronóstico de las 24 horas de una estación en una sola petición |
+| `GET /health` | 1 | Sondeo de disponibilidad (balanceador o monitoreo) |
+| `POST /predict` con `hour=25` | 1 | Entrada inválida: se espera HTTP 422 y cuenta como éxito (la validación no llega al modelo) |
+
+Las entradas salen de una red sintética de 300 estaciones dentro del Área Metropolitana de Guadalajara (semilla
+fija), con rezagos coherentes con el perfil horario de demanda e `is_weekend` consistente con `dow`, para que
+pasen la validación de Pydantic igual que en producción. Cada respuesta se revisa: una predicción que no sea
+un número finito y no negativo, o un lote con un número distinto de predicciones, cuenta como falla aunque el
+código HTTP sea 200.
+
+**Perfil de carga.** Por defecto la carga sube en escalones de 60 s con 10, 25, 50, 100 y 150 usuarios (5 min
+en total). Con los límites del compose (1 CPU y 1 GB para la API) se ve en qué escalón la latencia se dispara
+o aparecen errores, y cuál es el throughput que la API sostiene; ese dato es el insumo del análisis FinOps.
+
+```bash
+pip install -r requirements-carga.txt
+docker compose up -d --build                   # MLflow + API (ver la sección anterior)
+
+# Prueba sin interfaz: escribe los CSV y el reporte HTML de Locust en reports/carga/
+locust -f loadtest/locustfile.py --host http://localhost:8000 --headless     --csv reports/carga/locust --csv-full-history --html reports/carga/locust.html
+
+# Gráficas y reporte en Markdown a partir de esos CSV
+python loadtest/generar_reporte.py
+```
+
+En Windows (PowerShell) el comando de Locust va en una sola línea. Para observar la prueba en vivo, omite
+`--headless` y abre `http://localhost:8089`.
+
+| Variable de entorno | Por defecto | Uso |
+|---|---|---|
+| `CARGA_ESCENARIO` | `escalonado` | `constante` desactiva los escalones; la carga se controla con `-u`, `-r` y `-t` de Locust |
+| `CARGA_USUARIOS` | `10,25,50,100,150` | Usuarios de cada escalón |
+| `CARGA_ETAPA_SEG` | `60` | Duración de cada escalón en segundos |
+| `CARGA_LOTE` | `24` | Registros por petición a `/predict/lote` |
+
+Ejemplo de carga constante: `CARGA_ESCENARIO=constante locust -f loadtest/locustfile.py --host http://localhost:8000 --headless -u 50 -r 10 -t 3m`.
+
+**Reporte.** `loadtest/generar_reporte.py` lee los CSV de Locust y escribe en `reports/carga/`:
+
+| Archivo | Contenido |
+|---|---|
+| `reporte_carga.md` | Escenario, resultados globales y por endpoint, métricas por escalón, observaciones automáticas (capacidad sostenible con p95 ≤ 500 ms y menos de 1% de error, y escalón de saturación) y tabla de fallas |
+| `latencia_tiempo.png` | Latencia p50, p95 y p99 en el tiempo, con los cambios de escalón marcados |
+| `rps_tiempo.png` | Peticiones por segundo en el tiempo |
+| `errores_tiempo.png` | Tasa de error (%) en el tiempo |
+| `latencia_por_endpoint.png` | p50, p95 y p99 de cada endpoint |
+| `capacidad_por_etapa.png` | Throughput y p95 según el número de usuarios |
+| `resumen_etapas.csv` | Métricas por escalón, para el análisis FinOps |
+| `locust.html` | Reporte interactivo de Locust (lo genera Locust, no el script) |
+
+Mientras corre la prueba, `docker stats mibici-api mibici-mlflow` (o `podman stats`) muestra el consumo de CPU
+y memoria de los contenedores.
 
 ### Sin MLflow Project
 

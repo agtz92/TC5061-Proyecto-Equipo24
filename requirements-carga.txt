@@ -1,0 +1,3 @@
+# Pruebas de carga (loadtest/). Aparte de requirements.txt para no cargar el CI ni la imagen.
+# Instalar con: pip install -r requirements-carga.txt
+locust==2.47.0
