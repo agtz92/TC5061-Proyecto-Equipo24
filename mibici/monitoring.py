@@ -4,13 +4,18 @@ Define y genera:
 - Conjunto de Referencia (Reference Dataset): datos históricos con los que se entrenó el modelo.
 - Conjunto Actual (Current Dataset): datos de producción en un periodo posterior (datos abiertos 2026).
 
+Las predicciones salen del modelo vigente del Model Registry (`models:/mibici-equipo24-p1-demanda@champion`,
+el mismo que sirve la API), y la versión usada queda registrada en `data/monitoring/modelo_monitoreo.json`.
+
 Ejemplos de uso:
     python -m mibici.monitoring
+    python -m mibici.monitoring --model-uri models:/mibici-equipo24-p1-demanda@challenger
     python -m mibici.monitoring --reference-start 2025-01-01 --reference-end 2025-06-30 --current-start 2026-09-01 --current-end 2026-09-30
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from loguru import logger
@@ -20,8 +25,11 @@ import pandas as pd
 import typer
 
 from mibici.config import (
+    CHAMPION_ALIAS,
+    MLFLOW_TRACKING_URI,
     P1_FEATURES,
     PROJ_ROOT,
+    REGISTRY_NAME,
     START_MONTH,
     TEST_END,
     TEST_START,
@@ -32,15 +40,31 @@ from mibici.features import load_supervised_frame
 app = typer.Typer(help="Preparación de datasets de monitoreo (Reference vs Current).")
 
 MONITORING_DIR = PROJ_ROOT / "data" / "monitoring"
-DEFAULT_MODEL_DIR = PROJ_ROOT / "models" / "p1"
+# Mismo modelo que sirve la API y que evalúa mibici/drift_interpretation.py.
+DEFAULT_MODEL_URI = f"models:/{REGISTRY_NAME['p1']}@{CHAMPION_ALIAS}"
 TARGET_COL = "departures"
 
 
-def predecir_con_modelo(df: pd.DataFrame, model_path: Path | str = DEFAULT_MODEL_DIR) -> np.ndarray:
-    """Calcula predicciones para un DataFrame usando el modelo champion serializado."""
-    path_str = str(model_path)
-    logger.info(f"Cargando modelo champion desde '{path_str}'...")
-    model = mlflow.pyfunc.load_model(path_str)
+def cargar_modelo(model_uri: str = DEFAULT_MODEL_URI):
+    """Carga el modelo y devuelve (modelo, info) con la versión del registry que se usó.
+
+    `model_uri` puede ser `models:/<nombre>@<alias>`, `models:/<nombre>/<versión>`, `runs:/...` o una
+    carpeta local con un modelo de MLflow.
+    """
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    logger.info(f"Cargando modelo desde '{model_uri}'...")
+    model = mlflow.pyfunc.load_model(str(model_uri))
+    info = {"model_uri": str(model_uri), "run_id": model.metadata.run_id}
+    if str(model_uri).startswith("models:/") and "@" in str(model_uri):
+        nombre, alias = str(model_uri).removeprefix("models:/").split("@")
+        mv = mlflow.MlflowClient().get_model_version_by_alias(nombre, alias)
+        info.update({"model_name": nombre, "alias": alias, "version": str(mv.version), "run_id": mv.run_id})
+    logger.info(f"Modelo cargado: {info}")
+    return model, info
+
+
+def predecir_con_modelo(df: pd.DataFrame, model) -> np.ndarray:
+    """Calcula predicciones para un DataFrame con un modelo pyfunc ya cargado."""
     X = df[P1_FEATURES].astype("float32")
     preds = model.predict(X)
     return np.clip(np.asarray(preds, dtype=float), 0, None).round(3)
@@ -55,6 +79,7 @@ def preparar_datasets(
     sample_current: int | None = 50_000,
     output_dir: Path = MONITORING_DIR,
     export_csv: bool = True,
+    model_uri: str = DEFAULT_MODEL_URI,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Extrae, procesa y guarda los conjuntos de datos de referencia y actual."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -76,15 +101,16 @@ def preparar_datasets(
         sample_rows=sample_current,
     )
 
-    # Inferencia con el modelo si existe la carpeta del artefacto
-    if DEFAULT_MODEL_DIR.exists():
-        try:
-            logger.info("Generando predicciones del modelo champion para referencia...")
-            df_ref["prediction"] = predecir_con_modelo(df_ref, DEFAULT_MODEL_DIR)
-            logger.info("Generando predicciones del modelo champion para actual...")
-            df_cur["prediction"] = predecir_con_modelo(df_cur, DEFAULT_MODEL_DIR)
-        except Exception as exc:
-            logger.warning(f"No se pudieron generar predicciones con {DEFAULT_MODEL_DIR}: {exc}")
+    # Predicciones del modelo vigente. Si no se puede cargar, se detiene: un reporte de desempeño
+    # sin predicciones, o con las de otro modelo, no sirve para monitorear el que está en producción.
+    model, info = cargar_modelo(model_uri)
+    logger.info("Generando predicciones para referencia...")
+    df_ref["prediction"] = predecir_con_modelo(df_ref, model)
+    logger.info("Generando predicciones para actual...")
+    df_cur["prediction"] = predecir_con_modelo(df_cur, model)
+    info.update({"reference": [reference_start, reference_end], "current": [current_start, current_end],
+                 "reference_rows": len(df_ref), "current_rows": len(df_cur)})
+    (output_dir / "modelo_monitoreo.json").write_text(json.dumps(info, indent=2), encoding="utf-8")
 
     # Guardar en Parquet
     ref_parquet = output_dir / "reference.parquet"
@@ -127,6 +153,9 @@ def main(
     export_csv: bool = typer.Option(
         True, help="Exportar también copias en formato CSV"
     ),
+    model_uri: str = typer.Option(
+        DEFAULT_MODEL_URI, help="Modelo para las predicciones (alias, versión, runs:/ o carpeta local)"
+    ),
 ):
     """Prepara y almacena los conjuntos de datos para análisis de drift de MiBici."""
     s_ref = None if sample_reference <= 0 else sample_reference
@@ -140,6 +169,7 @@ def main(
         sample_reference=s_ref,
         sample_current=s_cur,
         export_csv=export_csv,
+        model_uri=model_uri,
     )
 
     print("\n" + "=" * 60)
