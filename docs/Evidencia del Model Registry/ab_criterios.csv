@@ -1,0 +1,7 @@
+criterio,regla,valor,cumple
+Mejora práctica del WAPE total,WAPE champion - WAPE challenger >= 0.5 pp,+0.18 pp,False
+Mejora estadísticamente significativa,límite inferior del IC 95% (el más conservador) > 0,"[+0.10 pp, +0.27 pp]",True
+Sin degradación en estaciones existentes,WAPE challenger - WAPE champion <= 0.5 pp,-0.13 pp,True
+Sin degradación en estaciones nuevas,WAPE challenger - WAPE champion <= 0.5 pp,-0.85 pp,True
+Sesgo controlado,sesgo absoluto: challenger - champion <= 0.02 viajes/h,+0.003,True
+Supera al baseline ingenuo,WAPE challenger < WAPE de la misma hora de la semana anterior,60.45% vs 73.64%,True
