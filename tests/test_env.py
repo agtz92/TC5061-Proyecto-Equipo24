@@ -21,3 +21,13 @@ def test_python_env_matches_requirements():
     assert env, "python_env.yaml no declara dependencias"
     for name, ver in env.items():
         assert req.get(name) == ver, f"{name}: python_env.yaml={ver} requirements.txt={req.get(name)}"
+
+
+def test_monitoring_requirements_share_pins():
+    """El entorno de Evidently (.venv-monitoring) usa las mismas versiones de datos que el proyecto."""
+    req = _pins((ROOT / "requirements.txt").read_text().splitlines())
+    mon = _pins((ROOT / "requirements-monitoring.txt").read_text().splitlines())
+    assert "evidently" in mon, "requirements-monitoring.txt debe fijar la versión de evidently"
+    for name in ("pandas", "numpy", "pyarrow"):
+        assert mon.get(name) == req.get(name), (
+            f"{name}: requirements-monitoring.txt={mon.get(name)} requirements.txt={req.get(name)}")
