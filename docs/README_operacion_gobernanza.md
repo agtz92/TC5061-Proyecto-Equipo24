@@ -153,6 +153,7 @@ cifras de desempeño de [`reporte_drift.md`](reporte_drift.md) (sección 4) con 
 | Calidad de datos | 0% nulos, 0 filas vacías, 0 columnas constantes |
 | Variables con drift | 5 de 13: `month`, `dep_mean_28d`, `dep_mean_7d`, `dep_lag_168h`, `dep_lag_24h` |
 | Causa | `month`: periodo actual incompleto (artefacto). Demanda: 100 estaciones nuevas con poca demanda y una caída real de 12% en las existentes |
+| Desempeño del champion en 2026 (Evidently) | Sesgo +0.009 viajes/h, MAE 0.743, RMSE 1.276, R² 0.683 (regenerado el 2026-11-26 con la v1) |
 | Efecto en el modelo | Sesgo cercano a cero; WAPE de 54.2% a 61.4%; 101% en estaciones nuevas |
 
 ### 3.2 A/B testing entre versiones
