@@ -45,7 +45,7 @@ Cada conjunto contiene exactamente las variables requeridas por el pipeline de i
   * Promedios móviles: `dep_mean_7d`, `dep_mean_28d` (promedios a la misma hora en 7 y 28 días).
   * Infraestructura y geolocalización: `capacity`, `lat`, `lon`.
 * **Etiqueta real (*Ground Truth*):** `departures` (salidas reales observadas en esa hora).
-* **Predicción del modelo:** `prediction` (inferencia generada con el modelo champion `models/p1`).
+* **Predicción del modelo:** `prediction` (inferencia del modelo vigente del registry, `models:/mibici-equipo24-p1-demanda@champion`, el mismo que sirve la API; la versión usada queda en `data/monitoring/modelo_monitoreo.json`). Para monitorear otra versión: `--model-uri models:/mibici-equipo24-p1-demanda@challenger`.
 
 ---
 

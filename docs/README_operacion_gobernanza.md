@@ -131,6 +131,23 @@ python -m mibici.monitoring                          # data/monitoring/reference
 python -m mibici.drift_interpretation                # análisis por segmento
 ```
 
+`mibici.monitoring` predice con `models:/mibici-equipo24-p1-demanda@champion` desde el servidor de
+`MLFLOW_TRACKING_URI` (el mismo modelo que sirve la API) y escribe la versión usada en
+`data/monitoring/modelo_monitoreo.json`. Si no puede cargar el modelo se detiene, en lugar de generar el
+reporte sin predicciones. Para monitorear otra versión: `--model-uri models:/mibici-equipo24-p1-demanda@challenger`.
+
+**Requisitos para regenerar el reporte:**
+
+1. La base de MLflow del equipo con los artefactos del champion (`mlflow.db` y `mlartifacts/` juntos), con el
+   servidor arriba. Comprueba que `models:/mibici-equipo24-p1-demanda@champion` sea la v1 de la corrida
+   `ccb4c1e5...`.
+2. El panel de features en `data/processed/panel_station_hour.parquet` (`python -m mibici.dataset` y
+   `python -m mibici.features` si no lo tienes).
+3. El entorno `.venv-monitoring` con `requirements-monitoring.txt`.
+
+Después de correr los tres comandos, revisa que `modelo_monitoreo.json` diga `"version": "1"` y actualiza las
+cifras de desempeño de [`reporte_drift.md`](reporte_drift.md) (sección 4) con las del nuevo reporte.
+
 | Resultado | Valor |
 |---|---|
 | Calidad de datos | 0% nulos, 0 filas vacías, 0 columnas constantes |
