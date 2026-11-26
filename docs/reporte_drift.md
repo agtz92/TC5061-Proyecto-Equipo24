@@ -9,10 +9,11 @@ Este documento resume los resultados del análisis de **Data Drift** (deriva de 
 * **Artefacto interactivo:** [`reports/evidently/drift_report.html`](../reports/evidently/drift_report.html) (reporte autocontenido visualizable en cualquier navegador).
 * **Artefacto estructurado:** [`reports/evidently/drift_report.json`](../reports/evidently/drift_report.json) (métricas serializadas para alertas CI/CD o pipelines automatizados).
 * **Periodos comparados:**
-  * **Referencia (*Training baseline*):** Enero 2022 a Junio 2025 (49,759 observaciones balanceadas en red de 371 estaciones).
+  * **Referencia (*Training baseline*):** Enero 2022 a Junio 2025 (49,726 observaciones balanceadas en red de 369 estaciones).
   * **Actual (*Producción 2026*):** Enero 2026 a Septiembre 2026 (49,745 observaciones balanceadas en red ampliada a 469 estaciones).
 * **Tasa de Drift global detectada:** **5 de 13 variables predictoras con deriva significativa (38.5%)**.
 * **Estado de Calidad de Datos:** **100% íntegro**. Cero valores nulos (0.0%), cero columnas constantes y cero filas vacías.
+* **Modelo evaluado:** `mibici-equipo24-p1-demanda` v1 (`@champion`), el mismo que sirve la API. Reporte regenerado el 2026-11-26: la versión anterior tomaba las predicciones de un modelo descargado en `models/p1` que no era el champion (sesgo de +0.149 y $R^2$ de 0.30).
 
 ---
 
@@ -43,32 +44,32 @@ Evidently aplicó pruebas estadísticas acordes al tipo y distribución de cada 
 
 | Variable | Tipo / Dimensión | ¿Drift Detectado? | Drift Score | Umbral | Prueba Estadística | Interpretación del Fenómeno |
 |---|---|:---:|:---:|:---:|---|---|
-| `month` | Calendario | **SÍ ⚠** | **0.2810** | 0.10 | Distancia Wasserstein | La referencia contiene los 12 meses (2022–2025); producción sólo abarca enero a septiembre 2026 (faltan Q4). |
-| `dep_mean_28d` | Demanda histórica | **SÍ ⚠** | **0.1348** | 0.10 | Distancia Wasserstein | La demanda base bajó de 1.47 a 1.22 viajes/hora debido a la dilución del tráfico por 98 nuevas estaciones. |
-| `dep_mean_7d` | Demanda histórica | **SÍ ⚠** | **0.1312** | 0.10 | Distancia Wasserstein | Descenso generalizado del promedio móvil semanal por la expansión periférica del sistema. |
-| `dep_lag_168h` | Demanda histórica | **SÍ ⚠** | **0.1117** | 0.10 | Distancia Wasserstein | Variación en la demanda a la misma hora de la semana anterior. |
-| `dep_lag_24h` | Demanda histórica | **SÍ ⚠** | **0.1099** | 0.10 | Distancia Wasserstein | Variación en la demanda a la misma hora del día anterior. |
-| `lon` | Geográfica | **no** | 0.0888 | 0.10 | Distancia Wasserstein | Cerca del umbral por nuevas estaciones periféricas en Zapopan y Tlaquepaque, pero aún estable. |
-| `capacity` | Infraestructura | **no** | 0.0821 | 0.10 | Distancia Wasserstein | Las nuevas estaciones tienen capacidades similares (promedio ~16 anclajes) a las históricas. |
-| `lat` | Geográfica | **no** | 0.0297 | 0.10 | Distancia Wasserstein | Distribución latitudinal conservada dentro de la Zona Metropolitana de Guadalajara. |
-| `dow` | Calendario | **no** | 0.0192 | 0.10 | Distancia Wasserstein | Distribución uniforme por día de la semana inalterada. |
-| `hour` | Calendario | **no** | 0.0136 | 0.10 | Distancia Wasserstein | Patrón horario (horas pico 8:00 y 18:00 hrs) se mantiene idéntico. |
-| `is_weekend` | Calendario | **no** | 0.0073 | 0.10 | Distancia Jensen-Shannon | Proporción fija de fines de semana (~28.5%). |
-| `is_quincena` | Calendario | **no** | 0.0057 | 0.10 | Distancia Jensen-Shannon | Distribución de días 15 y fin de mes invariante. |
-| `is_holiday` | Calendario | **no** | 0.0038 | 0.10 | Distancia Jensen-Shannon | Proporción de días feriados oficiales consistente. |
+| `month` | Calendario | **SÍ ⚠** | **0.2686** | 0.10 | Distancia Wasserstein | La referencia contiene los 12 meses (2022–2025); producción sólo abarca enero a septiembre 2026 (faltan Q4). |
+| `dep_mean_28d` | Demanda histórica | **SÍ ⚠** | **0.1454** | 0.10 | Distancia Wasserstein | La demanda base bajó de 1.47 a 1.22 viajes/hora debido a la dilución del tráfico por 100 nuevas estaciones. |
+| `dep_mean_7d` | Demanda histórica | **SÍ ⚠** | **0.1382** | 0.10 | Distancia Wasserstein | Descenso generalizado del promedio móvil semanal por la expansión periférica del sistema. |
+| `dep_lag_24h` | Demanda histórica | **SÍ ⚠** | **0.1161** | 0.10 | Distancia Wasserstein | Variación en la demanda a la misma hora del día anterior. |
+| `dep_lag_168h` | Demanda histórica | **SÍ ⚠** | **0.1142** | 0.10 | Distancia Wasserstein | Variación en la demanda a la misma hora de la semana anterior. |
+| `lon` | Geográfica | **no** | 0.09998 | 0.10 | Distancia Wasserstein | Cerca del umbral por nuevas estaciones periféricas en Zapopan y Tlaquepaque, pero aún estable. |
+| `capacity` | Infraestructura | **no** | 0.0822 | 0.10 | Distancia Wasserstein | Las nuevas estaciones tienen capacidades similares (promedio ~16 anclajes) a las históricas. |
+| `lat` | Geográfica | **no** | 0.0222 | 0.10 | Distancia Wasserstein | Distribución latitudinal conservada dentro de la Zona Metropolitana de Guadalajara. |
+| `dow` | Calendario | **no** | 0.0111 | 0.10 | Distancia Wasserstein | Distribución uniforme por día de la semana inalterada. |
+| `hour` | Calendario | **no** | 0.0223 | 0.10 | Distancia Wasserstein | Patrón horario (horas pico 8:00 y 18:00 hrs) se mantiene idéntico. |
+| `is_weekend` | Calendario | **no** | 0.0027 | 0.10 | Distancia Jensen-Shannon | Proporción fija de fines de semana (~28.5%). |
+| `is_quincena` | Calendario | **no** | 0.0039 | 0.10 | Distancia Jensen-Shannon | Distribución de días 15 y fin de mes invariante. |
+| `is_holiday` | Calendario | **no** | 0.0023 | 0.10 | Distancia Jensen-Shannon | Proporción de días feriados oficiales consistente. |
 
 ---
 
 ## 4. Evaluación del Desempeño del Modelo en Producción
 
-El preset `RegressionPreset` evaluó la capacidad predictiva del modelo champion (`mibici-equipo24-p1-demanda`, regresor Poisson) sobre los datos reales de 2026:
+El preset `RegressionPreset` evaluó la capacidad predictiva del modelo vigente (`models:/mibici-equipo24-p1-demanda@champion`, versión 1, corrida `ccb4c1e5...`, HistGradientBoosting con pérdida Poisson) sobre los datos reales de 2026:
 
 | Métrica de Regresión | Valor en Producción (2026) | Interpretación |
 |---|:---:|---|
-| **RMSE (*Root Mean Squared Error*)** | **1.8879** viajes/hora | Dispersión típica de los errores de predicción frente al conteo real por estación-hora. |
-| **MAE (*Mean Absolute Error*)** | **1.1924** viajes/hora | En promedio, el modelo difiere en ~1 viaje del valor real. |
-| **Sesgo medio (*Mean Error*)** | **+0.1494** viajes/hora | **Sobrepredicción sistemática**: el modelo asume una tasa promedio de 1.38 viajes/h cuando el valor real observado es 1.22 viajes/h. |
-| **Coeficiente $R^2$** | **0.3047** | El modelo retiene capacidad explicativa del 30.5% de la varianza en producción a pesar del drift de red. |
+| **RMSE (*Root Mean Squared Error*)** | **1.2755** viajes/hora | Dispersión típica de los errores de predicción frente al conteo real por estación-hora. |
+| **MAE (*Mean Absolute Error*)** | **0.7426** viajes/hora | En promedio, el modelo difiere en menos de un viaje del valor real. |
+| **Sesgo medio (*Mean Error*)** | **+0.0086** viajes/hora | **Sin sesgo relevante**: el modelo predice en promedio 1.22 viajes/h, igual que la demanda real observada (1.22 viajes/h). El cambio de nivel de la demanda en 2026 queda absorbido por los rezagos. |
+| **Coeficiente $R^2$** | **0.6826** | El modelo explica el 68.3% de la varianza en producción a pesar del drift de red. |
 
 ---
 
@@ -81,7 +82,7 @@ El preset `RegressionPreset` evaluó la capacidad predictiva del modelo champion
    * Al agregar estaciones en colonias periféricas con menor densidad inicial de viajes, el promedio global de viajes por estación cayó de 1.47 a 1.22.
    * Por consiguiente, las 4 variables de memoria (`dep_lag_24h`, `dep_lag_168h`, `dep_mean_7d`, `dep_mean_28d`) experimentaron deriva estructural respecto al entrenamiento.
 2. **Recomendaciones de acción:**
-   * **Reentrenamiento programado:** Incorporar los datos de 2025-H2 y 2026-H1 para recalibrar los coeficientes del regresor Poisson con la topología de 469 estaciones.
+   * **Reentrenamiento:** el reentrenamiento con datos hasta junio de 2026 (v2, `@challenger`) se evaluó en el A/B test y no alcanzó la mejora práctica de 0.5 pp; v1 sigue vigente ([`justificacion_version_vigente.md`](justificacion_version_vigente.md)). El problema principal son las estaciones nuevas, que requieren una regla de arranque en frío más que un reentrenamiento.
    * **Segmentación por clusters de estaciones:** Considerar features de densidad de red o modelos segmentados (estaciones céntricas consolidadas vs. estaciones periféricas de nueva creación).
    * **Política de monitoreo continuo:** Configurar un umbral de alerta en producción cuando más del 30% de las características experimenten drift, disparando una notificación automática al equipo de MLOps.
 
@@ -92,7 +93,11 @@ El preset `RegressionPreset` evaluó la capacidad predictiva del modelo champion
 Para ejecutar el monitoreo y regenerar los reportes HTML y JSON:
 
 ```bash
-# Ejecutar con el entorno virtual de monitoreo:
+# 1. Conjuntos de referencia y actual con predicciones del @champion (servidor de MLflow arriba)
+python -m mibici.monitoring
+# 2. Reporte de Evidently con el entorno de monitoreo (requirements-monitoring.txt)
 .venv-monitoring\Scripts\python.exe mibici\drift_report.py
 ```
+
+`data/monitoring/modelo_monitoreo.json` registra la versión del modelo que generó las predicciones.
 
