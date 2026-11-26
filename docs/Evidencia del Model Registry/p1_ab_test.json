@@ -1,0 +1,120 @@
+{
+  "fecha": "2026-11-15 11:23",
+  "run_name": "p1-ab-test-v1-vs-v2",
+  "run_id": "a8dab263aed2488b8b3f1215926f44af",
+  "champion": {
+    "alias": "champion",
+    "version": "1",
+    "run_id": "ccb4c1e5b8a04a59ab9500bff1eb9c6b",
+    "run_name": "p1-hgb-it400-lr0.1-d16-leaf50",
+    "model": "hgb",
+    "train_end": "2025-06-30 23:00",
+    "uri": "models:/mibici-equipo24-p1-demanda/1"
+  },
+  "challenger": {
+    "alias": "challenger",
+    "version": "2",
+    "run_id": "85344bca0baf4cb88ffb1f743260e2a3",
+    "run_name": "p1-hgb-retrain-2026-06",
+    "model": "hgb",
+    "train_end": "2026-06-30 23:00",
+    "uri": "models:/mibici-equipo24-p1-demanda/2"
+  },
+  "metricas": {
+    "champion_mae": 0.7377722601937787,
+    "champion_rmse": 1.3707010513818374,
+    "champion_wape": 0.606246279139926,
+    "champion_poisson_deviance": 0.9283765460243169,
+    "champion_bias": -0.03670309649735344,
+    "champion_wape_baseline": 0.7364433056090923,
+    "champion_rows": 1001510.0,
+    "champion_wape_existentes": 0.5776490705265336,
+    "champion_bias_existentes": -0.04831897954057282,
+    "champion_rows_existentes": 813562.0,
+    "champion_wape_nuevas": 1.0050900301506194,
+    "champion_bias_nuevas": 0.013578050630616312,
+    "champion_rows_nuevas": 187948.0,
+    "challenger_mae": 0.7356187984551371,
+    "challenger_rmse": 1.3642730869094608,
+    "challenger_wape": 0.6044767247167511,
+    "challenger_poisson_deviance": 0.9230847123283641,
+    "challenger_bias": -0.039739609155382924,
+    "challenger_wape_baseline": 0.7364433056090923,
+    "challenger_rows": 1001510.0,
+    "challenger_wape_existentes": 0.5763614398631706,
+    "challenger_bias_existentes": -0.05045726576186703,
+    "challenger_rows_existentes": 813562.0,
+    "challenger_wape_nuevas": 0.9965991106227937,
+    "challenger_bias_nuevas": 0.0066534258547498015,
+    "challenger_rows_nuevas": 187948.0,
+    "delta_wape": 0.001769554423174946,
+    "delta_wape_ic_estacion": [
+      0.0010015142783520422,
+      0.0027061658948135297
+    ],
+    "delta_wape_ic_dia": [
+      0.0013528128437816508,
+      0.002188946987648849
+    ],
+    "delta_wape_ic": [
+      0.0010015142783520422,
+      0.0027061658948135297
+    ],
+    "delta_abs_sesgo": 0.0030365126580294832,
+    "dm_pvalue": 0.0,
+    "delta_wape_existentes": 0.0012876306633630152,
+    "delta_wape_existentes_ic": [
+      0.0005366019097705771,
+      0.00229815109612363
+    ],
+    "estaciones_mejoran_existentes": 0.5962059620596206,
+    "delta_wape_nuevas": 0.008490919527825658,
+    "delta_wape_nuevas_ic": [
+      0.0037465803816913302,
+      0.014333796644796285
+    ],
+    "estaciones_mejoran_nuevas": 0.61
+  },
+  "decision": {
+    "vigente": "champion",
+    "criterios": [
+      {
+        "criterio": "Mejora pr\u00e1ctica del WAPE total",
+        "regla": "WAPE champion - WAPE challenger >= 0.5 pp",
+        "valor": "+0.18 pp",
+        "cumple": false
+      },
+      {
+        "criterio": "Mejora estad\u00edsticamente significativa",
+        "regla": "l\u00edmite inferior del IC 95% (el m\u00e1s conservador) > 0",
+        "valor": "[+0.10 pp, +0.27 pp]",
+        "cumple": true
+      },
+      {
+        "criterio": "Sin degradaci\u00f3n en estaciones existentes",
+        "regla": "WAPE challenger - WAPE champion <= 0.5 pp",
+        "valor": "-0.13 pp",
+        "cumple": true
+      },
+      {
+        "criterio": "Sin degradaci\u00f3n en estaciones nuevas",
+        "regla": "WAPE challenger - WAPE champion <= 0.5 pp",
+        "valor": "-0.85 pp",
+        "cumple": true
+      },
+      {
+        "criterio": "Sesgo controlado",
+        "regla": "sesgo absoluto: challenger - champion <= 0.02 viajes/h",
+        "valor": "+0.003",
+        "cumple": true
+      },
+      {
+        "criterio": "Supera al baseline ingenuo",
+        "regla": "WAPE challenger < WAPE de la misma hora de la semana anterior",
+        "valor": "60.45% vs 73.64%",
+        "cumple": true
+      }
+    ]
+  },
+  "promocion": "sin cambios: `@champion` sigue en v1."
+}
