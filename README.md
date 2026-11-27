@@ -25,6 +25,7 @@ El ML Canvas, la formulación completa y la arquitectura están en [`references/
 | [`docs/README_reproducibilidad.md`](docs/README_reproducibilidad.md) | Estructura Cookiecutter, feature engineering, MLflow Project, MLflow Tracking y Model Registry, desde un clon limpio |
 | [`docs/README_operacion_gobernanza.md`](docs/README_operacion_gobernanza.md) | API, contenedor, Docker Compose, CI/CD y Locust; drift con Evidently, A/B testing y FinOps |
 | [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | Model Card del modelo vigente: uso previsto, datos, métricas, linaje, operación y limitaciones |
+| [`demo/README.md`](demo/README.md) | Demo funcional: la API respondiendo a peticiones reales de septiembre de 2026, con guion y scripts |
 
 ## Datos
 
@@ -77,6 +78,7 @@ primer commit del repositorio.
 │   └── security/          <- Salidas de bandit, pip-audit y pruebas de seguridad (evidencia)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
+├── demo/                  <- Demo de la API: ejemplos reales, demo.py, demo.ps1 y guion
 ├── docs/MODEL_CARD.md     <- Model Card del modelo vigente (P1 @champion)
 ├── docs/README_reproducibilidad.md <- Guía: estructura, features, MLflow Project, Tracking y Registry
 ├── docs/README_operacion_gobernanza.md <- Guía: API, contenedor, Compose, CI/CD, Locust, drift, A/B y FinOps

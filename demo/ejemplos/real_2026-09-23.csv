@@ -1,0 +1,28 @@
+ejemplo,fecha,station_id,estacion,hour,viajes_reales
+01_hora_pico,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",7,37
+02_madrugada,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",3,0
+03_estacion_nueva,2026-09-23,428,"(GDL-307) Calz.Federalismo /C.Juan Alvarez",7,10
+05_lote_24h_h00,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",0,1
+05_lote_24h_h01,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",1,0
+05_lote_24h_h02,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",2,0
+05_lote_24h_h03,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",3,0
+05_lote_24h_h04,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",4,0
+05_lote_24h_h05,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",5,6
+05_lote_24h_h06,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",6,16
+05_lote_24h_h07,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",7,37
+05_lote_24h_h08,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",8,31
+05_lote_24h_h09,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",9,24
+05_lote_24h_h10,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",10,6
+05_lote_24h_h11,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",11,9
+05_lote_24h_h12,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",12,11
+05_lote_24h_h13,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",13,11
+05_lote_24h_h14,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",14,18
+05_lote_24h_h15,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",15,12
+05_lote_24h_h16,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",16,22
+05_lote_24h_h17,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",17,31
+05_lote_24h_h18,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",18,39
+05_lote_24h_h19,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",19,30
+05_lote_24h_h20,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",20,24
+05_lote_24h_h21,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",21,22
+05_lote_24h_h22,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",22,10
+05_lote_24h_h23,2026-09-23,51,"(GDL-049) Lopez Cotilla / Penitenciaría",23,10

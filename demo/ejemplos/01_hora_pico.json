@@ -1,0 +1,15 @@
+{
+  "hour": 7,
+  "dow": 2,
+  "month": 9,
+  "is_weekend": 0,
+  "is_holiday": 0,
+  "is_quincena": 0,
+  "dep_lag_24h": 34.0,
+  "dep_lag_168h": 16.0,
+  "dep_mean_7d": 27.4286,
+  "dep_mean_28d": 28.5,
+  "capacity": 39,
+  "lat": 20.6741,
+  "lon": -103.3555
+}
