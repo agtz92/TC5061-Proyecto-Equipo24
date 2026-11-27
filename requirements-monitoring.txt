@@ -1,0 +1,10 @@
+# Monitoreo de drift con Evidently (mibici/drift_report.py). Va en un entorno aparte (.venv-monitoring)
+# para no mezclar Evidently con las dependencias de MLflow del proyecto.
+# Instalar con:
+#   py -3.12 -m venv .venv-monitoring
+#   .venv-monitoring\Scripts\python.exe -m pip install -r requirements-monitoring.txt
+# Evidently 0.7 no funciona con pandas 3: pandas se fija en la misma versión que requirements.txt.
+evidently==0.7.23
+pandas==2.2.3
+numpy==2.2.5
+pyarrow==19.0.1

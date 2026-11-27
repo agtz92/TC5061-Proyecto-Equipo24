@@ -18,6 +18,14 @@ Guadalajara, para responder tres preguntas de operación con Machine Learning.
 
 El ML Canvas, la formulación completa y la arquitectura están en [`references/`](references/).
 
+## Guías y documentación del modelo
+
+| Documento | Qué cubre |
+|---|---|
+| [`docs/README_reproducibilidad.md`](docs/README_reproducibilidad.md) | Estructura Cookiecutter, feature engineering, MLflow Project, MLflow Tracking y Model Registry, desde un clon limpio |
+| [`docs/README_operacion_gobernanza.md`](docs/README_operacion_gobernanza.md) | API, contenedor, Docker Compose, CI/CD y Locust; drift con Evidently, A/B testing y FinOps |
+| [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | Model Card del modelo vigente: uso previsto, datos, métricas, linaje, operación y limitaciones |
+
 ## Datos
 
 | | |
@@ -47,6 +55,7 @@ primer commit del repositorio.
 ├── requirements.txt       <- Dependencias con versión fija
 ├── requirements-api.txt   <- Dependencias de ejecución de la API (las que instala la imagen)
 ├── requirements-carga.txt <- Locust, solo para las pruebas de carga
+├── requirements-monitoring.txt <- Evidently (entorno .venv-monitoring) para el reporte de drift
 ├── Containerfile          <- Imagen OCI de la API (formato Dockerfile; Podman y Docker)
 ├── .dockerignore          <- Archivos que no entran al contexto de construcción de la imagen
 ├── docker-compose.yml     <- Sistema completo: servidor de MLflow + API, con un solo comando
@@ -63,9 +72,14 @@ primer commit del repositorio.
 │   ├── figures/           <- Figuras de los modelos
 │   ├── deepchecks/        <- Reportes HTML (se generan al validar datasets)
 │   ├── carga/             <- Resultados de Locust, consumo de recursos, FinOps y reporte_carga.md
+│   ├── evidently/         <- Reporte de drift (HTML y JSON) e interpretación por segmento
+│   ├── ab_test/           <- Resultado del A/B testing entre @champion y @challenger
 │   └── security/          <- Salidas de bandit, pip-audit y pruebas de seguridad (evidencia)
 ├── tests/                 <- Pruebas y generador de datos sintéticos
 ├── security/              <- Chequeos de seguridad (run_checks.py) y riesgos aceptados de dependencias
+├── docs/MODEL_CARD.md     <- Model Card del modelo vigente (P1 @champion)
+├── docs/README_reproducibilidad.md <- Guía: estructura, features, MLflow Project, Tracking y Registry
+├── docs/README_operacion_gobernanza.md <- Guía: API, contenedor, Compose, CI/CD, Locust, drift, A/B y FinOps
 ├── docs/seguridad.md      <- Revisión de seguridad: hallazgos, correcciones y riesgos aceptados
 ├── docs/contenedor.md     <- Evidencia de construcción, ejecución y pruebas del contenedor de la API
 ├── docs/version_alternativa.md <- Evidencia del reentrenamiento de P1 (challenger) y su registro en MLflow
@@ -80,6 +94,8 @@ primer commit del repositorio.
     ├── modeling/p1_retrain.py <- Versión alternativa de P1 (challenger) y conjunto de evaluación A/B
     ├── api/main.py, api/schemas.py <- API REST (FastAPI) del modelo P1 y sus esquemas Pydantic
     ├── finops.py          <- Consumo de recursos por escalón y costo por inferencia (reporte de carga)
+    ├── monitoring.py, drift_report.py, drift_interpretation.py <- Conjuntos reference/current y drift con Evidently
+    ├── modeling/p1_ab_test.py <- A/B testing de P1 y decisión de versión vigente
     ├── modeling/predict.py<- Predicción batch (siguiente entrega)
     └── plots.py           <- Gráficas compartidas (siguiente entrega)
 ```
@@ -280,7 +296,7 @@ El entry point también funciona para P2 y P3.
 
 | Pregunta | Modelo elegido | Comando para reproducirlo |
 |---|---|---|
-| P1 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p1 -P model=...` |
+| P1 | HistGradientBoosting Poisson (400 iteraciones, lr 0.1, profundidad 16, 50 por hoja): `mibici-equipo24-p1-demanda` v1 `@champion`, WAPE de validación 56.99% contra 71.19% del baseline. Detalle en [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | `mlflow run . -e train --env-manager local -P question=p1 -P model=hgb` |
 | P2 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p2 -P model=...` |
 | P3 | _por definir tras comparar runs_ | `mlflow run . -e train --env-manager local -P question=p3 -P model=...` |
 
@@ -664,6 +680,10 @@ Los datasets generados se guardan en `data/monitoring/reference.parquet` y `data
 Para generar el reporte interactivo de calidad de datos, deriva de variables por prueba estadística y métricas de regresión en producción:
 
 ```bash
+# Solo la primera vez: entorno aparte con Evidently (no funciona con pandas 3)
+py -3.12 -m venv .venv-monitoring
+.venv-monitoring\Scripts\python.exe -m pip install -r requirements-monitoring.txt
+
 # Ejecución del reporte de drift con Evidently
 .venv-monitoring\Scripts\python.exe mibici\drift_report.py
 ```
