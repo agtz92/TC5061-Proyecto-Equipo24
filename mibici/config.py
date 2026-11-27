@@ -255,6 +255,8 @@ SEED = 42
 TEAM = os.getenv("MIBICI_TEAM", "equipo24")
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5001")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", f"mibici-{TEAM}")
+# URL de la API desplegada con docker-compose (la usa demo/demo.py)
+API_URL = os.getenv("MIBICI_API_URL", "http://localhost:8000")
 
 # Configura loguru para no romper las barras de progreso de tqdm
 try:

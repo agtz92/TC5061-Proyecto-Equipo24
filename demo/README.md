@@ -12,7 +12,7 @@ modelo no vio al entrenar, y cada predicción se compara con los viajes que real
 | `ejemplos/04_invalido.json` | Petición con `hour = 25`, que la API debe rechazar |
 | `ejemplos/05_lote_24h.json` | Las 24 horas de la estación 51, para `/predict/lote` |
 | `ejemplos/real_2026-09-23.csv` | Viajes reales de cada ejemplo, para comparar |
-| `demo.py` | Demo completa con Python, sin dependencias extra (`--grafica` opcional con matplotlib) |
+| `demo.py` | Demo completa con Python; las peticiones usan la biblioteca estándar (`--grafica` opcional con matplotlib) |
 | `demo.ps1` | La misma demo en PowerShell, sin Python |
 | `generar_ejemplos.py` | Regenera los ejemplos desde `data/processed` (otro día u otra estación) |
 
@@ -30,6 +30,8 @@ docker compose ps
 ```
 
 ## Correr la demo
+
+Con el `.venv` del proyecto activado (`pip install -e .`), desde la raíz del repositorio:
 
 ```powershell
 python demo/demo.py --pausa                     # con pausas entre pasos para ir explicando

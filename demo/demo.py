@@ -1,12 +1,13 @@
 """Demo de la API de demanda (P1): peticiones reales y comparación contra lo que pasó.
 
 Manda a la API los ejemplos de demo/ejemplos (un día de septiembre de 2026 que el modelo no vio al
-entrenar) y compara cada predicción con los viajes reales. Solo usa la biblioteca estándar; si hay
-matplotlib, `--grafica` guarda la curva de 24 horas predicha contra la real.
+entrenar) y compara cada predicción con los viajes reales. Las peticiones usan solo la biblioteca
+estándar; si hay matplotlib, `--grafica` guarda la curva de 24 horas predicha contra la real. La URL por
+defecto es API_URL de mibici/config.py (variable MIBICI_API_URL).
 
 Uso, con la API arriba (docker compose up -d):
     python demo/demo.py
-    python demo/demo.py --url http://localhost:8001 --pausa      # challenger, con pausas entre pasos
+    python demo/demo.py --url <URL del challenger, puerto 8001> --pausa
     python demo/demo.py --grafica demo/demo_24h.png
 """
 
@@ -19,6 +20,8 @@ from pathlib import Path
 import time
 import urllib.error
 import urllib.request
+
+from mibici.config import API_URL
 
 EJEMPLOS = Path(__file__).parent / "ejemplos"
 
@@ -53,7 +56,7 @@ def paso(titulo: str, pausa: bool) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--url", default="http://localhost:8000", help="URL base de la API")
+    p.add_argument("--url", default=API_URL, help="URL base de la API (MIBICI_API_URL)")
     p.add_argument("--pausa", action="store_true", help="Esperar Enter entre pasos (para presentar)")
     p.add_argument("--grafica", default=None, help="Ruta PNG para la curva de 24 h (requiere matplotlib)")
     args = p.parse_args()
